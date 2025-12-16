@@ -124,6 +124,73 @@ POST `/api/v1/tradingview/search`
 ```
 *(注意：此接口可能受 TradingView 上游限制而不稳定)*
 
+## Yahoo Finance API 接口
+
+我们扩展了 `/api/v1/yahoo` 模块，提供丰富的股票基本面数据（基于 `yfinance`）。**所有接口均为 POST 方法**。
+
+### 1. 股票信息 (Info)
+POST `/api/v1/yahoo/info`
+获取详细基本面信息（行业、市值、PE、简介等）。
+```json
+{"symbol": "AAPL"}
+```
+
+### 2. 历史K线 (History)
+POST `/api/v1/yahoo/history`
+获取历史市场数据。
+```json
+{
+  "symbol": "AAPL",
+  "period": "1mo",   // 可选: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+  "interval": "1d"   // 可选: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo
+}
+```
+
+### 3. 财务报表 (Financials)
+POST `/api/v1/yahoo/financials`
+获取资产负债表、利润表或现金流。
+```json
+{
+  "symbol": "AAPL",
+  "type": "balance" // 可选: balance, income, cashflow
+}
+```
+
+### 4. 新闻 (News)
+POST `/api/v1/yahoo/news`
+获取股票相关新闻列表。
+```json
+{"symbol": "AAPL"}
+```
+
+### 5. 股东结构 (Holders)
+POST `/api/v1/yahoo/holders`
+获取主要股东、机构持仓、公募基金持仓数据。
+```json
+{"symbol": "AAPL"}
+```
+
+### 6. 分析评级 (Analysis)
+POST `/api/v1/yahoo/analysis`
+获取分析师评级、目标价、评级调整记录。
+```json
+{"symbol": "AAPL"}
+```
+
+### 7. 公司日历 (Calendar)
+POST `/api/v1/yahoo/calendar`
+获取财报披露日、分红日等关键日期。
+```json
+{"symbol": "AAPL"}
+```
+
+### 8. 搜索 (Search)
+POST `/api/v1/yahoo/search`
+搜索股票代码。
+```json
+{"query": "Apple"}
+```
+
 ## 项目结构
 
 ```text
