@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Body
+from typing import List, Dict, Any
 from app.services.yahoo_service import YahooService
 from app.schemas.response import BaseResponse
 from app.schemas.yahoo import (

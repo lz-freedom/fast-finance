@@ -13,7 +13,7 @@ logger = logging.getLogger("fastapi")
 
 # --- Yahoo Finance Configuration ---
 # Enable debug mode for deeper insights
-yf.enable_debug_mode()
+# yf.enable_debug_mode()
 
 # Configure Cache Location
 # Use a dedicated cache directory within the project root
