@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    image: fast-finance-api:latest
+    container_name: fast-finance-api
+    ports:
+      - "9130:9130"
+    volumes:
+      - .:/app # 开发模式挂载代码，实现热重载
+    environment:
+      - LOG_LEVEL=info
+      - PORT=9130
+      # - JSON_LOGS=true
+      # 开发环境下覆盖启动命令以开启 reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 9130 --reload
+    restart: unless-stopped
+    networks:
+      - fast-finance-net
+
+networks:
+  fast-finance-net:
+    driver: bridge
