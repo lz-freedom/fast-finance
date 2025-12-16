@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # 日志设置
     LOG_LEVEL: str = "INFO"
     JSON_LOGS: bool = False
+    DEBUG: bool = True
     
     # 服务端口 (容器内部使用，外部通过 Docker 映射)
     PORT: int = 9130

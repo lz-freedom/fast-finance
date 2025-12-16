@@ -55,6 +55,75 @@
 - **健康检查**: [http://localhost:9130/api/v1/system/health](http://localhost:9130/api/v1/system/health)
   - 预期响应: `{"code": "200000", "message": "success", "data": {"status": "ok", ...}}`
 
+## TradingView API 接口
+
+我们在 `/api/v1/tradingview` 提供了技术分析接口。
+
+### 1. 获取分析数据 (Analysis)
+POST `/api/v1/tradingview/analysis`
+获取单个标的的详细技术指标。
+
+**请求参数**:
+```json
+{
+  "symbol": "AAPL",
+  "exchange": "NASDAQ",
+  "screener": "america",
+  "interval": "1d"
+}
+```
+
+### 2. 批量获取分析数据 (Multiple Analysis)
+POST `/api/v1/tradingview/analysis/multiple`
+批量获取多个标的的分析数据（需在同一 Screener 下）。
+
+**请求参数**:
+```json
+{
+  "symbols": ["NASDAQ:AAPL", "NYSE:TSLA"],
+  "screener": "america",
+  "interval": "1h"
+}
+```
+
+### 参数参考 (Enumeration)
+
+**Screener (市场/国家)**
+| 值 | 说明 |
+| :--- | :--- |
+| `america` | 美股 (USA) |
+| `crypto` | 加密货币 |
+| `forex` | 外汇 |
+| `cfd` | 差价合约 |
+| `indonesia`, `india`, `uk`, `brazil` | 其他国家股市... |
+
+**Interval (时间周期)**
+| 值 | 说明 |
+| :--- | :--- |
+| `1m` | 1 分钟 |
+| `5m` | 5 分钟 |
+| `15m` | 15 分钟 |
+| `30m` | 30 分钟 |
+| `1h` | 1 小时 |
+| `2h` | 2 小时 |
+| `4h` | 4 小时 |
+| `1d` | 1 天 (默认) |
+| `1W` | 1 周 |
+| `1M` | 1 月 |
+
+### 3. 搜索标的 (Search)
+POST `/api/v1/tradingview/search`
+搜索交易标的信息。
+
+**请求参数**:
+```json
+{
+  "text": "BTC",
+  "type": "crypto" // 可选: stock, crypto, futures, forex, cfd, index
+}
+```
+*(注意：此接口可能受 TradingView 上游限制而不稳定)*
+
 ## 项目结构
 
 ```text
