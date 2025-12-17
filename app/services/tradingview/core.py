@@ -7,6 +7,7 @@ import warnings
 from typing import List, Dict, Optional, Any, Union
 from .technicals import Compute, Recommendation
 from app.schemas.tradingview import ScreenerEnum, IntervalEnum
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,20 @@ class TradingView:
     }
 
     @staticmethod
+    def request(method: str, url: str, **kwargs) -> requests.Response:
+        """Unified request handler with proxy support"""
+        kwargs.setdefault("headers", TradingView.headers)
+        kwargs.setdefault("timeout", 10)
+        
+        if settings.PROXY_TRADINGVIEW:
+            kwargs["proxies"] = {
+                "http": settings.PROXY_TRADINGVIEW,
+                "https": settings.PROXY_TRADINGVIEW
+            }
+            
+        return requests.request(method, url, **kwargs)
+
+    @staticmethod
     def data(symbols: List[str], interval: str, indicators: List[str]) -> dict:
         """Format TradingView's Scanner Post Data"""
         interval_map = {
@@ -88,7 +103,7 @@ class TradingView:
         
         # 强制 GET 请求，这是绕过 WAF 的关键
         try:
-            res = requests.get(url, params=params, headers=TradingView.headers, timeout=10)
+            res = TradingView.request("GET", url, params=params)
             res.raise_for_status() # 抛出非 200 异常
             
             # 安全解析 JSON
@@ -311,7 +326,7 @@ class TA_Handler:
         scan_url = f"{TradingView.scan_url}{self.screener.lower()}/scan"
         
         try:
-            res = requests.post(scan_url, json=payload, headers=TradingView.headers, timeout=10)
+            res = TradingView.request("POST", scan_url, json=payload)
             res.raise_for_status()
             
             data = res.json()["data"]
@@ -356,7 +371,7 @@ def get_multiple_analysis(screener: str, interval: str, symbols: List[str]) -> D
     final_results = {}
     
     try:
-        res = requests.post(scan_url, json=payload, headers=TradingView.headers, timeout=10)
+        res = TradingView.request("POST", scan_url, json=payload)
         res.raise_for_status()
         
         data = res.json()["data"]

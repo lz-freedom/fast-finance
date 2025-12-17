@@ -1,216 +1,159 @@
 # Fast Finance API
 
-基于 FastAPI 构建的 Python 后端项目，支持 Docker 部署，集成 Swagger 文档与统一异常处理。
+<div align="center">
 
-## 核心特性
-- **FastAPI**: 高性能异步框架。
-- **Docker Compose**: 一键部署。
-- **统一响应格式**: 无论成功失败，HTTP 状态码均为 200，业务状态码封装在 `code` 字段。
-- **配置管理**: Pydantic Settings 类型安全配置。
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688?style=for-the-badge&logo=fastapi)
+![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?style=for-the-badge&logo=docker)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-## 快速开始
+**高性能、易扩展的金融数据 API 网关**
+
+[快速开始](#快速开始) • [文档](#API-文档) • [配置](#配置说明) • [贡献](#贡献指南)
+
+</div>
+
+---
+
+## 📖 项目简介
+
+**Fast Finance API** 是一个基于 **FastAPI** 构建的现代化异步后端服务，旨在为金融应用提供统一、高效的数据接口。它封装了 **TradingView 技术分析** 和 **Yahoo Finance 基本面数据**，屏蔽了上游接口的复杂性，并提供标准化的 RESTful API。
+
+### 核心特性
+
+- ⚡ **高性能异步架构**: 基于 FastAPI 和 Uvicorn，充分利用 Python 异步特性。
+- 🐳 **容器化部署**: 提供完整的 Docker 和 Docker Compose 支持，开箱即用。
+- 🛡️ **健壮的工程实践**: 集成 Pydantic 类型检查、统一异常处理、标准化响应格式。
+- 🔌 **多源数据集成**:
+    - **TradingView**: 实时技术指标分析 (TA)、筛选器数据。
+    - **Yahoo Finance**: 全面的股票基本面、K线、财报、新闻数据。
+
+## 🏗️ 系统架构
+
+```mermaid
+graph TD
+    Client[客户端 (Web/Mobile)] -->|HTTP/REST| LB[Nginx / Load Balancer]
+    LB -->|Proxy| API[Fast Finance API]
+    
+    subgraph "Core Services"
+        API -->|Route| TV[TradingView Service]
+        API -->|Route| YF[Yahoo Finance Service]
+        API -->|Config| Settings[Pydantic Settings]
+    end
+    
+    subgraph "Data Sources (External)"
+        TV -->|HTTP Requests| TVAPI[TradingView Server]
+        YF -->|yfinance Lib| YFAPI[Yahoo Finance API]
+    end
+    
+    style API fill:#009688,stroke:#fff,stroke-width:2px,color:#fff
+    style TV fill:#f9f,stroke:#333,stroke-width:2px
+    style YF fill:#bbf,stroke:#333,stroke-width:2px
+```
+
+## 🚀 快速开始
 
 ### 前置条件
-- Docker & Docker Compose
-- (可选) Python 3.10+ (本地开发用)
+- **Docker** & **Docker Compose** (推荐)
+- Python 3.10+ (仅本地开发需要)
 
-### 方式一：Docker 运行 (推荐)
+### 方式一：Docker 容器化运行 (推荐)
 
-代码修改后，最简单的测试方式是使用 Docker：
+最简单、最稳定的运行方式。
 
 1. **构建并启动服务**
    ```bash
    docker-compose up -d --build
    ```
-   *注意：`--build` 参数确保你的代码修改被重新打包进镜像。*
 
-2. **查看日志**
+2. **验证服务**
+   访问健康检查接口：`http://localhost:9130/api/v1/system/health`
+
+3. **查看日志**
    ```bash
-   docker-compose logs -f
+   docker-compose logs -f app
    ```
 
-3. **停止服务**
+4. **停止服务**
    ```bash
    docker-compose down
    ```
 
-### 方式二：本地 Python 运行
+### 方式二：本地开发运行
 
-如果你想更快的调试（利用热重载）：
+适用于开发调试和代码贡献。
 
-1. **安装依赖**
+1. **创建虚拟环境**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Windows: venv\Scripts\activate
+   ```
+
+2. **安装依赖**
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **启动开发服务器**
+3. **启动热重载服务器**
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 9130
    ```
-   *注意：代码保存后服务会自动重启。*
 
-## 验证与测试
+## 📚 API 文档
 
-- **Swagger 文档**: [http://localhost:9130/docs](http://localhost:9130/docs)
-- **健康检查**: [http://localhost:9130/api/v1/system/health](http://localhost:9130/api/v1/system/health)
-  - 预期响应: `{"code": "200000", "message": "success", "data": {"status": "ok", ...}}`
+本项目提供交互式 Swagger UI 文档，启动服务后即可访问。
 
-## TradingView API 接口
+- **在线文档 (Swagger UI)**: [http://localhost:9130/docs](http://localhost:9130/docs)
+- **详细接口定义**: 请参阅 [API_DOC.md](./API_DOC.md) 获取完整的请求/响应示例和字段说明。
 
-我们在 `/api/v1/tradingview` 提供了技术分析接口。
+### 接口概览
 
-### 1. 获取分析数据 (Analysis)
-POST `/api/v1/tradingview/analysis`
-获取单个标的的详细技术指标。
+| 模块 | 路径前缀 | 描述 |
+| :--- | :--- | :--- |
+| **System** | `/api/v1/system` | 健康检查、系统状态 |
+| **TradingView** | `/api/v1/tradingview` | 技术分析指标、市场筛选、标的搜索 |
+| **Yahoo Finance** | `/api/v1/yahoo` | 股票详情、K线历史、财报、新闻、股东分析 |
 
-**请求参数**:
-```json
-{
-  "symbol": "AAPL",
-  "exchange": "NASDAQ",
-  "screener": "america",
-  "interval": "1d"
-}
-```
+## ⚙️ 配置说明
 
-### 2. 批量获取分析数据 (Multiple Analysis)
-POST `/api/v1/tradingview/analysis/multiple`
-批量获取多个标的的分析数据（需在同一 Screener 下）。
+项目配置通过环境变量管理，支持 `.env` 文件。
 
-**请求参数**:
-```json
-{
-  "symbols": ["NASDAQ:AAPL", "NYSE:TSLA"],
-  "screener": "america",
-  "interval": "1h"
-}
-```
+| 变量名 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `API_V1_STR` | `/api/v1` | API 路径版本前缀 |
+| `PROJECT_NAME` | `Fast Finance API` | Swagger 文档标题 |
+| `BACKEND_CORS_ORIGINS` | `[]` | 允许跨域的源列表 (JSON 数组格式) |
+| `LOG_LEVEL` | `INFO` | 日志级别 (DEBUG, INFO, WARNING, ERROR) |
+| `JSON_LOGS` | `False` | 是否启用 JSON 格式日志 |
+| `DEBUG` | `True` | 是否开启调试模式 |
+| `PORT` | `9130` | 服务监听端口 (Docker 内部) |
 
-### 参数参考 (Enumeration)
-
-**Screener (市场/国家)**
-| 值 | 说明 |
-| :--- | :--- |
-| `america` | 美股 (USA) |
-| `crypto` | 加密货币 |
-| `forex` | 外汇 |
-| `cfd` | 差价合约 |
-| `indonesia`, `india`, `uk`, `brazil` | 其他国家股市... |
-
-**Interval (时间周期)**
-| 值 | 说明 |
-| :--- | :--- |
-| `1m` | 1 分钟 |
-| `5m` | 5 分钟 |
-| `15m` | 15 分钟 |
-| `30m` | 30 分钟 |
-| `1h` | 1 小时 |
-| `2h` | 2 小时 |
-| `4h` | 4 小时 |
-| `1d` | 1 天 (默认) |
-| `1W` | 1 周 |
-| `1M` | 1 月 |
-
-### 3. 搜索标的 (Search)
-POST `/api/v1/tradingview/search`
-搜索交易标的信息。
-
-**请求参数**:
-```json
-{
-  "text": "BTC",
-  "type": "crypto" // 可选: stock, crypto, futures, forex, cfd, index
-}
-```
-*(注意：此接口可能受 TradingView 上游限制而不稳定)*
-
-## Yahoo Finance API 接口
-
-我们扩展了 `/api/v1/yahoo` 模块，提供丰富的股票基本面数据（基于 `yfinance`）。**所有接口均为 POST 方法**。
-
-### 1. 股票信息 (Info)
-POST `/api/v1/yahoo/info`
-获取详细基本面信息（行业、市值、PE、简介等）。
-```json
-{"symbol": "AAPL"}
-```
-
-### 2. 历史K线 (History)
-POST `/api/v1/yahoo/history`
-获取历史市场数据。
-```json
-{
-  "symbol": "AAPL",
-  "period": "1mo",   // 可选: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
-  "interval": "1d"   // 可选: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo
-}
-```
-
-### 3. 财务报表 (Financials)
-POST `/api/v1/yahoo/financials`
-获取资产负债表、利润表或现金流。
-```json
-{
-  "symbol": "AAPL",
-  "type": "balance" // 可选: balance, income, cashflow
-}
-```
-
-### 4. 新闻 (News)
-POST `/api/v1/yahoo/news`
-获取股票相关新闻列表。
-```json
-{"symbol": "AAPL"}
-```
-
-### 5. 股东结构 (Holders)
-POST `/api/v1/yahoo/holders`
-获取主要股东、机构持仓、公募基金持仓数据。
-```json
-{"symbol": "AAPL"}
-```
-
-### 6. 分析评级 (Analysis)
-POST `/api/v1/yahoo/analysis`
-获取分析师评级、目标价、评级调整记录。
-```json
-{"symbol": "AAPL"}
-```
-
-### 7. 公司日历 (Calendar)
-POST `/api/v1/yahoo/calendar`
-获取财报披露日、分红日等关键日期。
-```json
-{"symbol": "AAPL"}
-```
-
-### 8. 搜索 (Search)
-POST `/api/v1/yahoo/search`
-搜索股票代码。
-```json
-{"query": "Apple"}
-```
-
-## 项目结构
+## 📂 项目结构
 
 ```text
 fast-finance/
 ├── app/
-│   ├── api/             # API 接口路由
-│   ├── core/            # 核心配置 (config, logging, exceptions)
-│   ├── schemas/         # Pydantic 模型 (req/resp schema)
+│   ├── api/             # API 路由定义 (Endpoints)
+│   ├── core/            # 核心配置 (Config, Logging, Middleware)
+│   ├── schemas/         # Pydantic 数据模型 (DTOs)
+│   ├── services/        # 业务逻辑层
 │   └── main.py          # 应用入口
-├── Dockerfile           # Docker 镜像构建
-├── docker-compose.yml   # 容器编排
-└── requirements.txt     # Python 依赖
+├── docs/                # 额外文档
+├── tests/               # 测试用例
+├── API_DOC.md           # 详细接口文档
+├── Dockerfile           # Docker 构建文件
+├── docker-compose.yml   # 容器编排配置
+└── requirements.txt     # Python 依赖清单
 ```
 
-## 常见操作 Q&A
+## 🤝 贡献指南
 
-**Q: 修改了端口怎么生效？**
-A: 修改 `.env` 或 `docker-compose.yml` 中的端口配置，然后运行 `docker-compose up -d` 重新创建容器。
+1. Fork 本仓库。
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)。
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)。
+4. 推送到分支 (`git push origin feature/AmazingFeature`)。
+5. 开启 Pull Request。
 
-**Q: 增加了新的 Python 包？**
-A: 
-1. 将包名写入 `requirements.txt`。
-2. 运行 `docker-compose up -d --build` 重新构建镜像。
+## 📄 许可证
+
+本项目基于 [MIT 许可证](LICENSE) 开源。

@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import AnyHttpUrl, EmailStr, validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     
     # 跨域设置
     BACKEND_CORS_ORIGINS: list[AnyHttpUrl] = []
+    
+    # 代理设置
+    PROXY_TRADINGVIEW: Optional[str] = None
+    PROXY_YAHOO: Optional[str] = None
 
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: str | list[str]) -> list[str] | str:

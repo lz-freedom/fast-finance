@@ -7,3 +7,4 @@ bin/
 temp/
 logs/
 .yfinance-cache
+.env

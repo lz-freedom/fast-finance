@@ -8,6 +8,7 @@ from requests.exceptions import HTTPError
 import platformdirs as _ad
 import os
 from app.core.utils import recursive_camel_case
+from app.core.config import settings
 
 logger = logging.getLogger("fastapi")
 
@@ -26,6 +27,14 @@ try:
     logger.info(f"yfinance cache location set to: {CACHE_DIR}")
 except Exception as e:
     logger.warning(f"Failed to set yfinance cache location: {e}")
+
+# Apply Proxy Configuration
+if settings.PROXY_YAHOO:
+    try:
+        yf.set_config(proxy=settings.PROXY_YAHOO)
+        logger.info(f"yfinance proxy set to: {settings.PROXY_YAHOO}")
+    except Exception as e:
+        logger.error(f"Failed to set yfinance proxy: {e}")
 
 class YahooService:
     @staticmethod
