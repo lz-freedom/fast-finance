@@ -15,7 +15,9 @@ class Settings(BaseSettings):
     
     # 代理设置
     PROXY_TRADINGVIEW: Optional[str] = None
+
     PROXY_YAHOO: Optional[str] = None
+    PROXY_INVESTING: Optional[str] = None
 
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: str | list[str]) -> list[str] | str:
