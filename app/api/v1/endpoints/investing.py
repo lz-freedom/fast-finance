@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import Optional, List, Any, Dict
 from pydantic import BaseModel
 from app.services.investing_service import InvestingService
+from app.schemas.response import BaseResponse
 
 router = APIRouter()
 
@@ -13,7 +14,7 @@ class TranslationsRequest(BaseModel):
     symbol: str
     country_codes: List[str]
 
-@router.post("/search", response_model=Dict[str, Any])
+@router.post("/search", response_model=BaseResponse)
 async def search_investing(request: SearchRequest):
     """
     Search for financial instruments on Investing.com.
@@ -23,17 +24,18 @@ async def search_investing(request: SearchRequest):
     """
     try:
         results = InvestingService.search(keyword=request.keyword, country_code=request.country_code)
-        return results
+        return BaseResponse.success(data=results)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/translations", response_model=Dict[str, List[Dict[str, Any]]])
+@router.post("/translations", response_model=BaseResponse)
 async def get_translations(request: TranslationsRequest):
     """
     Get translations for a stock symbol.
     """
     try:
-        return InvestingService.get_translations(request.symbol, request.country_codes)
+        data = InvestingService.get_translations(request.symbol, request.country_codes)
+        return BaseResponse.success(data=data)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

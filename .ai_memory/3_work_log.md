@@ -1,5 +1,9 @@
 # 开发日志
 
+## 2025-12-22
+- 将 Investing API (`/api/v1/investing`) 改为 POST 方法，并使用 Pydantic 模型接收参数。
+- 统一 Investing API 返回结构，使用 `BaseResponse` (code, message, data) 格式。
+
 ## 2025-12-16
 - 初始化项目记忆库。
 - 构建 FastAPI 项目基础架构。

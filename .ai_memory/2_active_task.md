@@ -9,10 +9,11 @@
 - [x] 编写项目使用文档 (README.md)
 - [x] 集成 TradingView 接口 (Analysis, Multiple, Search)
 - [x] 将 Investing API 改为 POST 方法
+- [x] 统一 Investing API 返回结构 (BaseResponse)
 
 ## 任务上下文
 TradingView 接口已集成 (`/api/v1/tradingview`)。
-Investing API (`/api/v1/investing`) 已更新为 POST 方法，使用 Pydantic 模型接收参数。
+Investing API (`/api/v1/investing`) 已更新为 POST 方法，并统一使用 `BaseResponse` 格式。
 已应用 Monkey Patch 修复 User-Agent 问题，并使用 Enum 增强了参数校验。
 Search 接口已修复（通过 Patch 强制 GET + 伪装 Headers）。
 已移除 `tradingview_ta` 库，并在 `app/services/tradingview` 完成了核心逻辑的迁移与重构。
