@@ -1,4 +1,5 @@
 import yfinance as yf
+from yfinance import EquityQuery
 import pandas as pd
 from typing import List, Dict, Any, Optional
 import json
@@ -23,7 +24,7 @@ if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR, exist_ok=True)
 
 try:
-    yf.set_tz_cache_location(CACHE_DIR)
+    # yf.set_tz_cache_location(CACHE_DIR)
     logger.info(f"yfinance cache location set to: {CACHE_DIR}")
 except Exception as e:
     logger.warning(f"Failed to set yfinance cache location: {e}")
@@ -31,7 +32,10 @@ except Exception as e:
 # Apply Proxy Configuration
 if settings.PROXY_YAHOO:
     try:
-        yf.set_config(proxy=settings.PROXY_YAHOO)
+        # Must be a dict for yfinance/curl_cffi
+        proxy_url = settings.PROXY_YAHOO
+        yf.config.network.proxy = {"http": proxy_url, "https": proxy_url}
+        yf.config.network.retries = 3
         logger.info(f"yfinance proxy set to: {settings.PROXY_YAHOO}")
     except Exception as e:
         logger.error(f"Failed to set yfinance proxy: {e}")
@@ -212,3 +216,49 @@ class YahooService:
         except Exception as e:
             logger.error(f"Error fetching calendar for {symbol}: {e}")
             return {}
+
+    @staticmethod
+    def get_active_stocks(
+        regions: List[str],
+        min_intraday_market_cap: int,
+        min_day_volume: int,
+        exchanges: List[str],
+        size: int
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get most active stocks by region using Yahoo Finance Screener API.
+        Uses yfinance.EquityQuery and yf.screen.
+        """
+        data = {}
+        
+        for region in regions:
+            try:
+                query = EquityQuery("and", [
+                    EquityQuery("eq", ["region", region]),
+                    EquityQuery("gte", ["intradaymarketcap", min_intraday_market_cap]),
+                    EquityQuery("gt", ["dayvolume", min_day_volume]),
+                    EquityQuery("is-in", ['exchange', *exchanges])
+                ])
+                
+                resp = yf.screen(
+                    query,
+                    size=size,
+                    sortField="dayvolume",
+                    sortAsc=False
+                )
+                
+                # resp["quotes"] contains the list of stocks
+                quotes = resp.get("quotes", [])
+                
+                cleaned_list = []
+                for q in quotes:
+                    cleaned_list.append(recursive_camel_case(q))
+                    
+                data[region] = cleaned_list
+                logger.info(f"Fetched {len(cleaned_list)} stocks for region {region}")
+                
+            except Exception as e:
+                logger.error(f"Error fetching screener for region {region}: {e}")
+                data[region] = []
+        
+        return data

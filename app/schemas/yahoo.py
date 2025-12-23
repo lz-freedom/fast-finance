@@ -168,8 +168,19 @@ class YahooAnalysisResponse(BaseModel):
     targetMean: Optional[float] = Field(None, description="目标均价")
     upgradesDowngrades: Optional[List[Dict[str, Any]]] = Field(None, description="评级升降级记录")
 
+
 class YahooCalendarResponse(BaseModel):
     model_config = ConfigDict(extra='allow')
     
     calendar: Optional[Dict[str, Any]] = Field(None, description="财报日历等信息")
+
+class YahooMarketActivesRequest(BaseModel):
+    regions: List[str] = Field(..., description="国家地区列表 / Regions List", example=["us", "cn", "sg", "hk", "in"])
+    minIntradayMarketCap: int = Field(20000000, description="盘中市值最小值 / Min Intraday Market Cap")
+    minDayVolume: int = Field(5000000, description="日交易量最小值 / Min Day Volume")
+    exchanges: List[str] = Field(..., description="交易所列表 / Exchanges List", example=['SHH','SHZ','HKG','NYQ','NMS','SES','JPX','NSI','LSE','TOR','VAN','ASX'])
+    size: int = Field(10, description="返回条数 / Size per region")
+
+class YahooMarketActivesResponse(BaseModel):
+    data: Dict[str, List[Dict[str, Any]]] = Field(..., description="各地区股票列表 / Market Data by Region")
 

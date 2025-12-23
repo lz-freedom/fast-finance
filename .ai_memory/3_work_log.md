@@ -4,6 +4,14 @@
 - 将 Investing API (`/api/v1/investing`) 改为 POST 方法，并使用 Pydantic 模型接收参数。
 - 统一 Investing API 返回结构，使用 `BaseResponse` (code, message, data) 格式。
 
+## 2025-12-23
+- 实现 Yahoo Finance 活跃股排行接口 (`/api/v1/yahoo/screener` -> `/api/v1/yahoo/rank/market_actives`).
+    - 重构路径以更好地反映业务语义 (Market Actives Ranking)。
+    - 重命名模型为 `YahooMarketActivesRequest/Response`。
+    - **重构实现**: 弃用手动 requests，改用 `yfinance` (>1.0.0) 的 `EquityQuery` 和 `screen` 方法，代码更简洁且符合官方用法。
+    - **修复 Bug**: 修复了 `yfinance` 在配置 Proxy 时传入字符串导致内部 `curl_cffi` 报错 (`AttributeError: 'str' object has no attribute 'get'`) 的问题，改为传入字典格式 `{'http': url, 'https': url}`。
+    - 支持按地区遍历查询并聚合结果。
+
 ## 2025-12-16
 - 初始化项目记忆库。
 - 构建 FastAPI 项目基础架构。

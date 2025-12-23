@@ -10,7 +10,8 @@ from app.schemas.yahoo import (
     YahooNewsRequest,
     YahooHoldersRequest,
     YahooAnalysisRequest,
-    YahooCalendarRequest
+    YahooCalendarRequest,
+    YahooMarketActivesRequest
 )
 
 router = APIRouter()
@@ -103,6 +104,23 @@ async def get_calendar(request: YahooCalendarRequest):
     """
     try:
         data = YahooService.get_calendar(request.symbol)
+        return BaseResponse.success(data=data)
+    except Exception as e:
+        raise e
+
+@router.post("/rank/market_actives", response_model=BaseResponse, summary="获取活跃股票排行")
+async def get_market_actives(request: YahooMarketActivesRequest):
+    """
+    获取不同国家地区最活跃的股票列表 (基于交易量排序)。
+    """
+    try:
+        data = YahooService.get_active_stocks(
+            regions=request.regions,
+            min_intraday_market_cap=request.minIntradayMarketCap,
+            min_day_volume=request.minDayVolume,
+            exchanges=request.exchanges,
+            size=request.size
+        )
         return BaseResponse.success(data=data)
     except Exception as e:
         raise e

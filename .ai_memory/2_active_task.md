@@ -10,16 +10,14 @@
 - [x] 集成 TradingView 接口 (Analysis, Multiple, Search)
 - [x] 将 Investing API 改为 POST 方法
 - [x] 统一 Investing API 返回结构 (BaseResponse)
+- [x] 实现 Yahoo Finance 活跃股排行接口 (Region/MarketCap/Volume/Exchange)
+    - [x] 路径: `/api/v1/yahoo/rank/market_actives`
+    - [x] 实现: 重构为使用 `yf.screen` + `EquityQuery` (yfinance>=1.0.0)
 
 ## 任务上下文
 TradingView 接口已集成 (`/api/v1/tradingview`)。
 Investing API (`/api/v1/investing`) 已更新为 POST 方法，并统一使用 `BaseResponse` 格式。
-已应用 Monkey Patch 修复 User-Agent 问题，并使用 Enum 增强了参数校验。
-Search 接口已修复（通过 Patch 强制 GET + 伪装 Headers）。
-已移除 `tradingview_ta` 库，并在 `app/services/tradingview` 完成了核心逻辑的迁移与重构。
-原生支持了 HTTP Headers 伪装（无需 Monkey Patch），且集成了 Enum 类型安全。
-已添加 `requests` 依赖并重建镜像，解决了 `ModuleNotFoundError`。
-接口功能验证通过。
+Yahoo Finance 活跃股排行接口 (`/api/v1/yahoo/rank/market_actives`) 已根据用户要求 refactor 为使用原生 `yfinance` 库方法。
 
 ## 下一步计划
 无。等待用户进一步指令。
