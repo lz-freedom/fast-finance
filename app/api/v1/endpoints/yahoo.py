@@ -11,7 +11,10 @@ from app.schemas.yahoo import (
     YahooHoldersRequest,
     YahooAnalysisRequest,
     YahooCalendarRequest,
-    YahooMarketActivesRequest
+    YahooCalendarRequest,
+    YahooMarketActivesRequest,
+    YahooSplitsRequest,
+    YahooDividendsRequest
 )
 
 router = APIRouter()
@@ -44,7 +47,7 @@ async def get_financials(request: YahooFinancialsRequest):
     获取资产负债表、利润表或现金流量表。
     """
     try:
-        data = YahooService.get_financials(request.symbol, request.type.value)
+        data = YahooService.get_financials(request.symbol, request.type.value, request.freq.value)
         return BaseResponse.success(data=data)
     except Exception as e:
         raise e
@@ -104,6 +107,28 @@ async def get_calendar(request: YahooCalendarRequest):
     """
     try:
         data = YahooService.get_calendar(request.symbol)
+        return BaseResponse.success(data=data)
+    except Exception as e:
+        raise e
+
+@router.post("/splits", response_model=BaseResponse, summary="获取股票拆分信息")
+async def get_splits(request: YahooSplitsRequest):
+    """
+    获取股票的历史拆分记录。
+    """
+    try:
+        data = YahooService.get_splits(request.symbol, request.period.value)
+        return BaseResponse.success(data=data)
+    except Exception as e:
+        raise e
+
+@router.post("/dividends", response_model=BaseResponse, summary="获取股票股息信息")
+async def get_dividends(request: YahooDividendsRequest):
+    """
+    获取股票的历史分红记录。
+    """
+    try:
+        data = YahooService.get_dividends(request.symbol, request.period.value)
         return BaseResponse.success(data=data)
     except Exception as e:
         raise e

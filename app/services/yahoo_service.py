@@ -1,5 +1,4 @@
 import yfinance as yf
-from yfinance import EquityQuery
 import pandas as pd
 from typing import List, Dict, Any, Optional
 import json
@@ -104,17 +103,18 @@ class YahooService:
             raise e
 
     @staticmethod
-    def get_financials(symbol: str, type_: str) -> Dict[str, Any]:
+    def get_financials(symbol: str, type_: str, freq: str = "yearly") -> Dict[str, Any]:
         try:
             ticker = yf.Ticker(symbol)
             df = pd.DataFrame()
             
+            # Use method calls with freq parameter instead of properties
             if type_ == "balance":
-                df = ticker.balance_sheet
+                df = ticker.get_balance_sheet(freq=freq)
             elif type_ == "income":
-                df = ticker.income_stmt
+                df = ticker.get_income_stmt(freq=freq)
             elif type_ == "cashflow":
-                df = ticker.cashflow
+                df = ticker.get_cashflow(freq=freq)
             
             if df.empty:
                 return {}
@@ -216,6 +216,54 @@ class YahooService:
         except Exception as e:
             logger.error(f"Error fetching calendar for {symbol}: {e}")
             return {}
+
+    @staticmethod
+    def get_splits(symbol: str, period: str = "max") -> List[Dict[str, Any]]:
+        try:
+            ticker = yf.Ticker(symbol)
+            # get_splits returns a Series with Date index and Split Ratio values
+            splits = ticker.get_splits(period=period)
+            
+            if splits.empty:
+                return []
+            
+            # Convert Series to list of dicts
+            # Series index is Date (Timestamp), value is Float (Split Ratio)
+            result = []
+            for date, ratio in splits.items():
+                 result.append({
+                     "date": date.isoformat() if hasattr(date, 'isoformat') else str(date),
+                     "ratio": ratio
+                 })
+            # Descending order by date usually better for display
+            result.sort(key=lambda x: x['date'], reverse=True)
+            return result
+        except Exception as e:
+             logger.error(f"Error fetching splits for {symbol}: {e}")
+             return []
+
+    @staticmethod
+    def get_dividends(symbol: str, period: str = "max") -> List[Dict[str, Any]]:
+        try:
+            ticker = yf.Ticker(symbol)
+            # get_dividends returns a Series with Date index and Dividend Amount values
+            dividends = ticker.get_dividends(period=period)
+            
+            if dividends.empty:
+                return []
+            
+            result = []
+            for date, amount in dividends.items():
+                 result.append({
+                     "date": date.isoformat() if hasattr(date, 'isoformat') else str(date),
+                     "amount": amount
+                 })
+            result.sort(key=lambda x: x['date'], reverse=True)
+            return result
+        except Exception as e:
+             logger.error(f"Error fetching dividends for {symbol}: {e}")
+             return []
+
 
     @staticmethod
     def get_active_stocks(

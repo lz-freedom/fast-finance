@@ -37,6 +37,10 @@ class FinancialsType(str, Enum):
     income = "income"
     cashflow = "cashflow"
 
+class FinancialsFrequency(str, Enum):
+    yearly = "yearly"
+    quarterly = "quarterly"
+
 # --- Request Models ---
 
 class YahooInfoRequest(BaseModel):
@@ -50,6 +54,15 @@ class YahooHistoryRequest(BaseModel):
 class YahooFinancialsRequest(BaseModel):
     symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
     type: FinancialsType = Field(..., description="报表类型 / Report Type")
+    freq: FinancialsFrequency = Field(default=FinancialsFrequency.yearly, description="频率 / Frequency")
+
+class YahooSplitsRequest(BaseModel):
+    symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    period: YahooPeriod = Field(default=YahooPeriod.max, description="时间周期 / Time Period")
+
+class YahooDividendsRequest(BaseModel):
+    symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    period: YahooPeriod = Field(default=YahooPeriod.max, description="时间周期 / Time Period")
 
 class YahooSearchRequest(BaseModel):
     query: str = Field(..., description="搜索关键词 / Search Query", example="Apple")
