@@ -11,13 +11,16 @@
 - [x] 将 Investing API 改为 POST 方法
 - [x] 统一 Investing API 返回结构 (BaseResponse)
 - [x] 实现 Yahoo Finance 活跃股排行接口 (Region/MarketCap/Volume/Exchange)
-    - [x] 路径: `/api/v1/yahoo/rank/market_actives`
-    - [x] 实现: 重构为使用 `yf.screen` + `EquityQuery` (yfinance>=1.0.0)
+- [x] 实现 Google Finance 接口 (Search/Detail/History)
+    - [x] 配置: `PROXY_GOOGLE` 支持
+    - [x] 核心: `GoogleFinanceService` 封装与 `__batch_exec` 优化
+    - [x] 接口: `/api/v1/google/search`, `/detail`, `/details`, `/history`
 
 ## 任务上下文
-TradingView 接口已集成 (`/api/v1/tradingview`)。
-Investing API (`/api/v1/investing`) 已更新为 POST 方法，并统一使用 `BaseResponse` 格式。
-Yahoo Finance 活跃股排行接口 (`/api/v1/yahoo/rank/market_actives`) 已根据用户要求 refactor 为使用原生 `yfinance` 库方法。
+TradingView 和 Yahoo Finance 接口已完成。
+Google Finance 接口已开发完成，实现了 `GoogleService`，并注册了路由。
+接口设计遵循了 Pydantic Schema，请求参数已规范化。
 
 ## 下一步计划
-无。等待用户进一步指令。
+验证 Google Finance 接口功能。
+等待用户反馈。

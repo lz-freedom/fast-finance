@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     PROXY_YAHOO: Optional[str] = None
     PROXY_INVESTING: Optional[str] = None
+    PROXY_GOOGLE: Optional[str] = None
 
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: str | list[str]) -> list[str] | str:

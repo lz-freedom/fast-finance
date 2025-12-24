@@ -6,10 +6,10 @@ import logging
 
 router = APIRouter()
 
-@router.post("/analysis", response_model=BaseResponse, summary="单标的技术分析")
+@router.post("/analysis", response_model=BaseResponse, summary="单股票技术分析")
 async def get_analysis(request: AnalysisRequest):
     """
-    获取单个交易标的的详细技术分析数据 (Summary, Oscillators, Moving Averages, Indicators)
+    获取单个股票的详细技术分析数据 (Summary, Oscillators, Moving Averages, Indicators)
     """
     try:
         handler = TA_Handler(
@@ -40,7 +40,7 @@ async def get_analysis(request: AnalysisRequest):
 @router.post("/analysis/multiple", response_model=BaseResponse, summary="批量技术分析")
 async def get_analysis_multiple(request: MultipleAnalysisRequest):
     """
-    获取多个标的的技术分析数据。
+    获取多个股票的技术分析数据。
     """
     try:
         results = get_multiple_analysis(
@@ -68,10 +68,10 @@ async def get_analysis_multiple(request: MultipleAnalysisRequest):
         logging.error(f"TradingView Multiple Analysis Error: {e}\n{traceback.format_exc()}")
         raise e
 
-@router.post("/search", response_model=BaseResponse, summary="搜索标的")
+@router.post("/search", response_model=BaseResponse, summary="搜索股票")
 async def search_symbols(request: SearchRequest):
     """
-    搜索交易标的，返回 Symbol, Exchange, Type 等信息。
+    搜索股票，返回 Symbol, Exchange, Type 等信息。
     """
     try:
         results = TradingView.search(request.text, request.type)

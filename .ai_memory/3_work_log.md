@@ -12,6 +12,12 @@
     - **修复 Bug**: 修复了 `yfinance` 在配置 Proxy 时传入字符串导致内部 `curl_cffi` 报错 (`AttributeError: 'str' object has no attribute 'get'`) 的问题，改为传入字典格式 `{'http': url, 'https': url}`。
     - 支持按地区遍历查询并聚合结果。
 
+## 2025-12-24
+- 实现 Google Finance 接口 (`/api/v1/google`).
+    - **服务封装**: `GoogleService`，优化了 `__batch_exec`，支持 Session 复用和 Proxy 配置。
+    - **接口实现**: Search, Detail, Multiple Details, History。
+    - **Schema**: 定义了 Pydantic 模型，将 `symbol` 和 `exchange` 拆分处理，符合用户需求。
+
 ## 2025-12-16
 - 初始化项目记忆库。
 - 构建 FastAPI 项目基础架构。

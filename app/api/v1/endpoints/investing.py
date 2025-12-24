@@ -14,7 +14,7 @@ class TranslationsRequest(BaseModel):
     symbol: str
     country_codes: List[str]
 
-@router.post("/search", response_model=BaseResponse)
+@router.post("/search", response_model=BaseResponse, summary="搜索股票和新闻")
 async def search_investing(request: SearchRequest):
     """
     Search for financial instruments on Investing.com.
@@ -28,7 +28,7 @@ async def search_investing(request: SearchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/translations", response_model=BaseResponse)
+@router.post("/translations", response_model=BaseResponse, summary="获取股票翻译和新闻翻译")
 async def get_translations(request: TranslationsRequest):
     """
     Get translations for a stock symbol.

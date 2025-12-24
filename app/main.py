@@ -15,6 +15,7 @@ from app.core.exceptions import (
 from app.api.v1.endpoints import health
 from app.api.v1.endpoints import yahoo
 from app.api.v1.endpoints import investing
+from app.api.v1.endpoints import google
 
 # 初始化日志
 setup_logging()
@@ -57,7 +58,10 @@ def create_app() -> FastAPI:
     app.include_router(yahoo.router, prefix=f"{settings.API_V1_STR}/yahoo", tags=["Yahoo Finance"])
 
     # 注册 Investing 路由
-    app.include_router(investing.router, prefix=f"{settings.API_V1_STR}/investing", tags=["Investing.com"])
+    app.include_router(investing.router, prefix=f"{settings.API_V1_STR}/investing", tags=["英为财情"])
+
+    # 注册 Google 路由
+    app.include_router(google.router, prefix=f"{settings.API_V1_STR}/google", tags=["Google Finance"])
 
     return app
 
