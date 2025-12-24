@@ -4,6 +4,7 @@ import json
 import random
 import datetime
 import logging
+from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional, Union
 from app.core.config import settings
 from app.core.utils import recursive_camel_case
@@ -297,3 +298,133 @@ class GoogleService:
         except Exception as e:
             logger.error(f"Get history error for {symbol}:{exchange}: {e}")
             return []
+
+    @classmethod
+    def scrape_quote(cls, symbol: str, exchange: str) -> Dict[str, Any]:
+        """
+        Scrape partial data from Google Finance web page.
+        """
+        url = f"https://www.google.com/finance/quote/{symbol}:{exchange}?hl=en"
+        try:
+            rsp = cls.__session.get(url, timeout=cls.__timeout)
+            rsp.raise_for_status()
+            soup = BeautifulSoup(rsp.text, 'html.parser')
+            
+            # 1. Price
+            price_div = soup.find(class_="YMlKec fxKbKc")
+            price = price_div.text if price_div else None
+            
+            # 2. Currency
+            # e.g. "USD" usually near price or in stats
+            # For now simplified/skip or try to find in header
+            currency = "USD" # Default or find text
+
+            # 3. Change %
+            # NydbP nRedzd (negative) or P2Luy (positive)? Obfuscated.
+            # Look for percentage in header area
+            # Alternative: in generic batch it is reliable. Here just try best effort?
+            # Let's skip obscure change percent and rely on Stats for now if header is hard
+            
+            # 4. Stats
+            stats = {}
+            labels = ["Previous close", "Day range", "Year range", "Market cap", "Avg Volume", "P/E ratio", "Dividend yield", "Primary exchange"]
+            
+            for label in labels:
+                label_el = soup.find(string=label)
+                if label_el:
+                    parent = label_el.parent
+                    if parent:
+                        # Traversal logic from debug
+                        curr = parent
+                        found = False
+                        for i in range(3):
+                            if not curr: break
+                            sibling = curr.find_next_sibling()
+                            if sibling:
+                                text = sibling.get_text(strip=True)
+                                # Improved heuristic to avoid tooltips (descriptions)
+                                # Descriptions are usually long and non-numeric
+                                # Values usually have digits or symbols ($/%)
+                                
+                                is_valid = len(text) < 40 and (
+                                    any(c.isdigit() for c in text) or # Must contain digit
+                                    "NASDAQ" in text or "NYSE" in text or "SHA" in text or "HKG" in text # Exchange names
+                                )
+                                
+                                if text and is_valid:
+                                    stats[label] = text
+                                    found = True
+                                    break
+                            curr = curr.parent
+                        
+                        if not found and curr:
+                             # Last resort: P6K39c class?
+                             val_div = curr.find(class_="P6K39c")
+                             if val_div:
+                                 stats[label] = val_div.get_text()
+
+            # 5. About
+            about_data = {}
+            about_header = soup.find("div", string="About")
+            if about_header:
+                section = about_header.find_parent("section")
+                if not section:
+                    section = about_header.parent
+                    while section and len(section.get_text()) < 50:
+                        section = section.parent
+                
+                if section:
+                    desc_div = section.find("div", class_="bLLb2d")
+                    if desc_div:
+                        about_data['description'] = desc_div.get_text(strip=True)
+                    else:
+                        full_text = section.get_text(separator="\n", strip=True)
+                        lines = [l for l in full_text.split("\n") if len(l) > 50]
+                        if lines:
+                            about_data['description'] = lines[0]
+                            
+                    # CEO, Founded etc often in table div.gyFHrc in About section
+                    # Iterate rows?
+                    # Simply extracting description is likely enough for v1
+
+            # 6. Peers
+            peers = []
+            peer_header = soup.find("div", string="You may be interested in")
+            if not peer_header:
+                 peer_header = soup.find("div", string="People also search for")
+            
+            if peer_header:
+                 section = peer_header.find_parent("section")
+                 if section:
+                     links = section.find_all("a")
+                     for l in links:
+                         href = l.get("href", "")
+                         if "quote/" in href:
+                             txt = l.get_text(separator="|", strip=True).split("|")
+                             # txt usually: [Symbol, Name, Price, Change] or [Name, Symbol...]
+                             if len(txt) >= 2:
+                                 # Heuristic: Uppercase short is symbol?
+                                 # Just dump as is, maybe structured
+                                 p_symbol = txt[0]
+                                 p_name = txt[1] if len(txt) > 1 else ""
+                                 p_price = txt[2] if len(txt) > 2 else None
+                                 p_change = txt[3] if len(txt) > 3 else None
+                                 peers.append({
+                                     "symbol": p_symbol, 
+                                     "name": p_name,
+                                     "price": p_price,
+                                     "change_percent": p_change
+                                 })
+
+            return {
+                "symbol": symbol,
+                "exchange": exchange,
+                "price": price,
+                "currency": currency,
+                "stats": stats,
+                "about": about_data,
+                "peers": peers
+            }
+        except Exception as e:
+            logger.error(f"Scrape quote error for {symbol}:{exchange}: {e}")
+            return {}

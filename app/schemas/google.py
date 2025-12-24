@@ -68,3 +68,25 @@ class GoogleHistoryResponse(BaseModel):
     exchange: str
     range: str
     data: List[GoogleHistoryItem]
+
+# --- Scraping Models ---
+
+class GoogleScrapeRequest(BaseModel):
+    symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    exchange: str = Field(..., description="交易所代码 / Exchange Code", example="NASDAQ")
+
+class GooglePeer(BaseModel):
+    symbol: str
+    name: str
+    price: Optional[str] = None
+    change_percent: Optional[str] = None
+
+class GoogleScrapeResponse(BaseModel):
+    symbol: str
+    exchange: str
+    price: Optional[str] = None
+    currency: Optional[str] = None
+    change_percent: Optional[str] = None
+    stats: Dict[str, Optional[str]] = Field(default_factory=dict, description="Key Statistics like Market Cap, Volume")
+    about: Dict[str, Optional[str]] = Field(default_factory=dict, description="Company Description and Details")
+    peers: List[GooglePeer] = Field(default_factory=list, description="Related Stocks")

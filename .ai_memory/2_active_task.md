@@ -12,14 +12,17 @@
 - [x] 统一 Investing API 返回结构 (BaseResponse)
 - [x] 实现 Yahoo Finance 活跃股排行接口 (Region/MarketCap/Volume/Exchange)
 - [x] 实现 Google Finance 接口 (Search/Detail/History)
-    - [x] 配置: `PROXY_GOOGLE` 支持
-    - [x] 核心: `GoogleFinanceService` 封装与 `__batch_exec` 优化
-    - [x] 接口: `/api/v1/google/search`, `/detail`, `/details`, `/history`
+- [x] 实现 Yahoo Finance 活跃股排行接口 (Region/MarketCap/Volume/Exchange)
+- [x] 实现 Google Finance 接口 (Search/Detail/History)
+- [x] 实现 Google Finance 网页爬虫 (Scrape Quote Page)
+    - [x] 目标: `https://www.google.com/finance/quote/{symbol}:{exchange}`
+    - [x] 内容: 头部/价格, 关键统计 (Stats), 财务信息 (Financials), 同类比较 (Peers), 简介 (About)
+    - [x] 技术: HTML Parsing (BeautifulSoup/lxml) via `requests`
 
 ## 任务上下文
-TradingView 和 Yahoo Finance 接口已完成。
-Google Finance 接口已开发完成，实现了 `GoogleService`，并注册了路由。
-接口设计遵循了 Pydantic Schema，请求参数已规范化。
+TradingView, Yahoo, Google API (RPC) 均已完成。
+用户新增需求：直接爬取 Google Finance 网页以获取更丰富或可视化的数据（覆盖提供的截图内容）。
+需要解析 HTML，处理混淆类名或利用结构定位。
 
 ## 下一步计划
 验证 Google Finance 接口功能。

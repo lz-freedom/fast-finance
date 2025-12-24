@@ -6,7 +6,8 @@ from app.schemas.google import (
     GoogleSearchRequest, GoogleSearchResponse,
     GoogleDetailRequest, GoogleDetailResponse,
     GoogleDetailsRequest,
-    GoogleHistoryRequest, GoogleHistoryResponse
+    GoogleHistoryRequest, GoogleHistoryResponse,
+    GoogleScrapeRequest, GoogleScrapeResponse
 )
 
 router = APIRouter()
@@ -87,5 +88,16 @@ async def get_history(request: GoogleHistoryRequest):
             "range": request.range.value,
             "data": data
         })
+    except Exception as e:
+        raise e
+
+@router.post("/quote_scrape", response_model=BaseResponse, summary="从网页爬取股票数据")
+async def scrape_quote(request: GoogleScrapeRequest):
+    """
+    直接从 Google Finance 网页爬取数据 (包含价格、统计信息、简介、同行比较)。
+    """
+    try:
+        data = GoogleService.scrape_quote(request.symbol, request.exchange)
+        return BaseResponse.success(data=data)
     except Exception as e:
         raise e

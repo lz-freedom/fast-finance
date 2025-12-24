@@ -17,6 +17,11 @@
     - **服务封装**: `GoogleService`，优化了 `__batch_exec`，支持 Session 复用和 Proxy 配置。
     - **接口实现**: Search, Detail, Multiple Details, History。
     - **Schema**: 定义了 Pydantic 模型，将 `symbol` 和 `exchange` 拆分处理，符合用户需求。
+- 根据用户截图需求，实现了 **Google Finance 网页爬虫** (`/api/v1/google/quote_scrape`)。
+    - **技术**: 使用 `requests` + `BeautifulSoup4` 解析网页 HTML。
+    - **策略**: 针对 Google 混淆类名，采用了基于文本定位 (Text-based Selectors) 和层级遍历 (Traversal) 的策略。
+    - **优化**: 解决了 Tooltip 描述文本干扰数值提取的问题（通过长度和数字特征过滤）。
+    - **覆盖**: 实现了 Price, Stats (Market Cap, Volume, P/E etc), About, Peers (Related Stocks) 的提取。
 
 ## 2025-12-16
 - 初始化项目记忆库。
