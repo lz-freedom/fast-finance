@@ -1,4 +1,5 @@
 import yfinance as yf
+from yfinance import EquityQuery
 import pandas as pd
 from typing import List, Dict, Any, Optional
 import json
