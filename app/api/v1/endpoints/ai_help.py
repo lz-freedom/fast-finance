@@ -24,17 +24,20 @@ class AggregatedDataResponse(BaseModel):
     dividends: List[Dict[str, Any]]
     name_and_new_translations: Dict[str, Any]
 
-@router.get("/stock_financial_data_aggregation", response_model=AggregatedDataResponse, summary="一次性并发获取所有AI需要股票数据")
-async def stock_financial_data_aggregation(
-    stock_symbol: str = Query(..., description="股票代码"),
+class StockFinancialDataAggregationReq(BaseModel):
+    stock_symbol: str = Query(..., description="股票代码")
     exchange_acronym: str = Query(..., description="交易所缩写 (例如 SZSE)")
+
+@router.post("/stock_financial_data_aggregation", response_model=AggregatedDataResponse, summary="一次性并发获取所有AI需要股票数据")
+async def stock_financial_data_aggregation(
+    req: StockFinancialDataAggregationReq
 ):
     # 1. 获取平台信息
-    yahoo_info = get_stock_info(stock_symbol, exchange_acronym, PLATFORM_YAHOO)
-    investing_info = get_stock_info(stock_symbol, exchange_acronym, PLATFORM_INVESTING)
+    yahoo_info = get_stock_info(req.stock_symbol, req.exchange_acronym, PLATFORM_YAHOO)
+    investing_info = get_stock_info(req.stock_symbol, req.exchange_acronym, PLATFORM_INVESTING)
     
     if not yahoo_info or not investing_info:
-        raise HTTPException(status_code=400, detail=f"Exchange acronym '{exchange_acronym}' not supported")
+        raise HTTPException(status_code=400, detail=f"Exchange acronym '{req.exchange_acronym}' not supported")
 
     yahoo_symbol = yahoo_info["stock_symbol"]
     
@@ -78,7 +81,7 @@ async def stock_financial_data_aggregation(
         country_code = investing_info["country_code"]
         investing_code = investing_info["exchange_code"]
         try:
-            translations = await run_in_threadpool(InvestingService.get_translations, stock_symbol, [country_code])
+            translations = await run_in_threadpool(InvestingService.get_translations, req.stock_symbol, [country_code])
             # 过滤逻辑
             filtered_quotes = []
             if "quotes" in translations and isinstance(translations["quotes"], list):
@@ -86,7 +89,7 @@ async def stock_financial_data_aggregation(
                     q_exchange = quote.get("exchange", "")
                     q_symbol = quote.get("symbol", "")
                     
-                    if investing_code.lower() in q_exchange.lower() and stock_symbol.lower() == q_symbol.lower():
+                    if investing_code.lower() in q_exchange.lower() and req.stock_symbol.lower() == q_symbol.lower():
                          filtered_quotes.append(quote)
             
             translations["quotes"] = filtered_quotes
