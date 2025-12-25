@@ -2,11 +2,12 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.services.yahoo_service import YahooService
 from app.services.investing_service import InvestingService
 from app.core.constants import get_exchange_info_by_acronym, get_stock_info, PLATFORM_YAHOO, PLATFORM_INVESTING
 import logging
+from app.schemas.response import BaseResponse
 
 router = APIRouter()
 logger = logging.getLogger("fastapi")
@@ -25,10 +26,21 @@ class AggregatedDataResponse(BaseModel):
     name_and_new_translations: Dict[str, Any]
 
 class StockFinancialDataAggregationReq(BaseModel):
-    stock_symbol: str = Query(..., description="股票代码")
-    exchange_acronym: str = Query(..., description="交易所缩写 (例如 SZSE)")
+    stock_symbol: str = Field(..., description="股票代码")
+    exchange_acronym: str = Field(..., description="交易所缩写 (例如 SZSE)")
 
-@router.post("/stock_financial_data_aggregation", response_model=AggregatedDataResponse, summary="一次性并发获取所有AI需要股票数据", description="""
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "stock_symbol": "AAPL",
+                    "exchange_acronym": "NASDAQ"
+                }
+            ]
+        }
+    }
+
+@router.post("/stock_financial_data_aggregation", response_model=BaseResponse[AggregatedDataResponse], summary="一次性并发获取所有AI需要股票数据", description="""
     获取包含以下聚合数据的财务信息：
     - 基础信息 (Info)
     - 年度/季度资产负债表 (Balance Sheet)
@@ -162,7 +174,7 @@ async def stock_financial_data_aggregation(
         # 给定“任意一个有值即成功”，反之“无值即失败”是合理的。
         raise HTTPException(status_code=404, detail="No data found for the given symbol and exchange on any platform")
 
-    return {
+    return BaseResponse.success({
         "info": info,
         "balance_yearly_yefinancials": balance_yearly,
         "balance_quarterly_yefinancials": balance_quarterly,
@@ -174,4 +186,4 @@ async def stock_financial_data_aggregation(
         "splits": splits,
         "dividends": dividends,
         "name_and_new_translations": translations
-    }
+    })
