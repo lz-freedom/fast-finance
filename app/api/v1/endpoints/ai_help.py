@@ -28,7 +28,17 @@ class StockFinancialDataAggregationReq(BaseModel):
     stock_symbol: str = Query(..., description="股票代码")
     exchange_acronym: str = Query(..., description="交易所缩写 (例如 SZSE)")
 
-@router.post("/stock_financial_data_aggregation", response_model=AggregatedDataResponse, summary="一次性并发获取所有AI需要股票数据")
+@router.post("/stock_financial_data_aggregation", response_model=AggregatedDataResponse, summary="一次性并发获取所有AI需要股票数据", description="""
+    获取包含以下聚合数据的财务信息：
+    - 基础信息 (Info)
+    - 年度/季度资产负债表 (Balance Sheet)
+    - 年度/季度利润表 (Income Statement) 
+    - 年度/季度现金流量表 (Cash Flow)
+    - 新闻 (News)
+    - 拆股历史 (Splits)
+    - 分红历史 (Dividends)
+    - 多语言名称翻译 (Translations)
+    """)
 async def stock_financial_data_aggregation(
     req: StockFinancialDataAggregationReq
 ):
