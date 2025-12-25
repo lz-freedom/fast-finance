@@ -16,6 +16,7 @@ from app.api.v1.endpoints import health
 from app.api.v1.endpoints import yahoo
 from app.api.v1.endpoints import investing
 from app.api.v1.endpoints import google
+from app.api.v1.endpoints import ai_help
 
 # 初始化日志
 setup_logging()
@@ -62,6 +63,9 @@ def create_app() -> FastAPI:
 
     # 注册 Google 路由
     app.include_router(google.router, prefix=f"{settings.API_V1_STR}/google", tags=["Google Finance"])
+
+    # 注册 AI Help 路由
+    app.include_router(ai_help.router, prefix="/ai_help", tags=["AI辅助"])
 
     return app
 
