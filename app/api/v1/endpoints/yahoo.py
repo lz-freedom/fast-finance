@@ -149,3 +149,109 @@ async def get_market_actives(request: YahooMarketActivesRequest):
         return BaseResponse.success(data=data)
     except Exception as e:
         raise e
+
+from app.api.v1.endpoints.ai_help import StockFinancialDataAggregationReq
+from app.core.constants import get_exchange_info_by_platform_code, PLATFORM_YAHOO
+from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, Field
+from typing import Dict, Optional
+from datetime import datetime
+import logging
+
+logger = logging.getLogger("fastapi")
+
+class YahooWebCrawlerResponse(BaseModel):
+    analysis_returns: Dict[str, Dict[str, Optional[str]]] = {}
+    analysis_compare_to: List[Dict[str, str]] = []
+    analysis_people_also_watch: List[Dict[str, str]] = []
+
+@router.post("/yahoo_web_crawler", response_model=BaseResponse[YahooWebCrawlerResponse], summary="雅虎网页爬虫", description="获取回报率、获取同类股票、获取大家都在看")
+async def yahoo_web_crawler(req: StockFinancialDataAggregationReq):
+    try:
+        # Use helper from constants if needed, or just scrap directly using symbol
+        # But we need to resolve symbol first using the existing logic
+        # Or simply require the Yahoo Symbol? 
+        # The request is StockFinancialDataAggregationReq (symbol + exchange)
+        # So we resolve it first.
+        
+        from app.core.constants import get_stock_info
+        
+        yahoo_info = get_stock_info(req.stock_symbol, req.exchange_acronym, PLATFORM_YAHOO)
+        if not yahoo_info:
+            # Fallback: Try constructing it manually or error
+            # If user provides valid yahoo ticker logic locally in client, maybe okay?
+            # But let's error for consistency
+            return BaseResponse.fail(code="400", message=f"Exchange acronym '{req.exchange_acronym}' not supported")
+        
+        yahoo_symbol = yahoo_info["stock_symbol"]
+
+        raw_data = await run_in_threadpool(YahooService.get_scraped_analysis, yahoo_symbol)
+        
+        if not raw_data:
+            return BaseResponse.success({
+                "analysis_returns": {},
+                "analysis_compare_to": [],
+                "analysis_people_also_watch": []
+            })
+        
+        # Process Tickers Logic
+        def process_tickers(items: List[Dict[str, str]]):
+            processed = []
+            for item in items:
+                t = item.get("symbol")
+                name = item.get("name", "")
+                
+                if not t: continue
+
+                # Parse Ticker: SYMBOL.SUFFIX
+                parts = t.split(".")
+                symbol_part = parts[0]
+                suffix = parts[-1] if len(parts) > 1 else ""
+                
+                exchange_acronym = suffix # Default to suffix if unknown
+                
+                if suffix:
+                    exchange_info = get_exchange_info_by_platform_code(PLATFORM_YAHOO, suffix)
+                    if exchange_info:
+                        exchange_acronym = exchange_info["acronym"]
+                else:
+                    exchange_acronym = "US" # Default for no suffix
+                
+                processed.append({
+                    "stock_symbol": symbol_part,
+                    "exchange_acronym": exchange_acronym,
+                    "name": name
+                })
+            return processed
+
+        return BaseResponse.success({
+            "analysis_returns": raw_data.get("returns", {}),
+            "analysis_compare_to": process_tickers(raw_data.get("compare_to", [])),
+            "analysis_people_also_watch": process_tickers(raw_data.get("people_also_watch", []))
+        })
+
+    except Exception as e:
+        logger.error(f"Error in yahoo_web_crawler: {e}")
+        return BaseResponse.success({
+            "analysis_returns": {},
+            "analysis_compare_to": [],
+            "analysis_people_also_watch": []
+        })
+
+@router.post("/local/stocks", response_model=BaseResponse, summary="获取本地同步的股票列表")
+async def get_local_stocks(
+    start_time: Optional[datetime] = Body(None, description="筛选创建时间在此之后的股票 (ISO format)")
+):
+    """
+    获取从Yahoo同步并保存在本地的股票列表。
+    可以根据 start_time 筛选只需增量数据 (例如今天新增的股票)。
+    """
+    try:
+        from app.core.database import SQLiteManager
+        
+        # Use run_in_threadpool since SQLite is blocking
+        stocks = await run_in_threadpool(SQLiteManager.get_stocks_after, start_time)
+        return BaseResponse.success(data=stocks)
+    except Exception as e:
+        logger.error(f"Error fetching local stocks: {e}")
+        return BaseResponse.fail(code="500", message=str(e))

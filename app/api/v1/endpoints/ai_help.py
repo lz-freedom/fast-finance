@@ -5,10 +5,9 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from app.services.yahoo_service import YahooService
 from app.services.investing_service import InvestingService
-from app.core.constants import get_exchange_info_by_acronym, get_stock_info, PLATFORM_YAHOO, PLATFORM_INVESTING
+from app.core.constants import get_exchange_info_by_acronym, get_stock_info, PLATFORM_YAHOO, PLATFORM_INVESTING, get_exchange_info_by_platform_code
 import logging
 from app.schemas.response import BaseResponse
-
 router = APIRouter()
 logger = logging.getLogger("fastapi")
 
@@ -39,7 +38,6 @@ class StockFinancialDataAggregationReq(BaseModel):
             ]
         }
     }
-
 @router.post("/stock_financial_data_aggregation", response_model=BaseResponse[AggregatedDataResponse], summary="一次性并发获取所有AI需要股票数据", description="""
     获取包含以下聚合数据的财务信息：
     - 基础信息 (Info)
@@ -120,8 +118,7 @@ async def stock_financial_data_aggregation(
             logger.error(f"Error fetching Investing data: {e}")
             return {"quotes": [], "news": [], "articles": []}
 
-    # 4. 运行并发任务
-    # 使用 gather 保证所有任务运行。异常在任务内部处理。
+    # 4. Run Concurrent Tasks
     results = await asyncio.gather(
         fetch_yahoo_info(),
         fetch_financials("balance", "yearly"),
@@ -151,9 +148,7 @@ async def stock_financial_data_aggregation(
         translations
     ) = results
 
-    # 5. 检查是否有数据返回
-    # 规则："以下项任意一个有值接口都返回成功"
-    # 我们检查是否有任何主要字典/列表非空
+    # 5. Check Data
     has_data = any([
         info,
         balance_yearly,
@@ -165,13 +160,10 @@ async def stock_financial_data_aggregation(
         news,
         splits,
         dividends,
-        # 对于翻译数据，检查是否有内容
         translations.get("quotes") or translations.get("news") or translations.get("articles")
     ])
 
     if not has_data:
-        # 如果完全没有返回任何内容，则抛出异常
-        # 给定“任意一个有值即成功”，反之“无值即失败”是合理的。
         raise HTTPException(status_code=404, detail="No data found for the given symbol and exchange on any platform")
 
     return BaseResponse.success({

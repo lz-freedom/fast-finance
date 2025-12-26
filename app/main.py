@@ -50,6 +50,10 @@ def create_app() -> FastAPI:
     # 这里简单直接引入，实际项目可能通过 api_router 统一管理
     app.include_router(health.router, prefix=f"{settings.API_V1_STR}/system")
 
+    # 注册 Tools 路由
+    from app.api.v1.endpoints import tools
+    app.include_router(tools.router, prefix=f"{settings.API_V1_STR}/tools", tags=["工具"])
+
     # 注册 AI Help 路由
     app.include_router(ai_help.router, prefix=f"{settings.API_V1_STR}/ai_help", tags=["AI辅助"])
 
@@ -65,6 +69,21 @@ def create_app() -> FastAPI:
 
     # 注册 Google 路由
     app.include_router(google.router, prefix=f"{settings.API_V1_STR}/google", tags=["Google Finance"])
+
+
+
+    @app.on_event("startup")
+    async def startup_event():
+        try:
+            from app.core.database import SQLiteManager
+            
+            # Initialize DB
+            SQLiteManager.init_db()
+            
+            # Auto-start removed as per request, use /tools/task/yahoo_stock_update to trigger
+        except Exception as e:
+            # Don't fail up just log
+            print(f"Startup task failed: {e}")
 
 
     return app

@@ -311,3 +311,150 @@ class YahooService:
                 data[region] = []
         
         return data
+
+    @staticmethod
+    def get_scraped_analysis(symbol: str) -> Dict[str, Any]:
+        """
+        Scrapes additional analysis data from Yahoo Finance web page:
+        - Performance Overview (Returns vs Index)
+        - Compare To (Competitors with Name)
+        - People Also Watch (Related Stocks with Name)
+        """
+        url = f"https://finance.yahoo.com/quote/{symbol}/"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5"
+        }
+        
+        try:
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code != 200:
+                logger.error(f"Failed to scrape Yahoo page for {symbol}: {resp.status_code}")
+                return {}
+            
+            from bs4 import BeautifulSoup
+            import re
+            soup = BeautifulSoup(resp.text, "html.parser")
+            
+            result = {
+                "returns": {},
+                "compare_to": [],
+                "people_also_watch": []
+            }
+            
+            # 1. Performance Overview (Stock vs Index)
+            # Structure: section[data-testid="performance-overview"] -> section[data-testid="card-container"]
+            perf_section = soup.find("section", {"data-testid": "performance-overview"})
+            if perf_section:
+                cards = perf_section.find_all("section", {"data-testid": "card-container"})
+                for card in cards:
+                    # Get Title
+                    title_div = card.find("h3", class_="title")
+                    if not title_div:
+                        continue
+                    title_text = title_div.get_text(strip=True) # e.g. "YTD Return"
+                    
+                    # Normalize key
+                    key = None
+                    if "YTD" in title_text: key = "YTD"
+                    elif "1-Year" in title_text: key = "1-Year"
+                    elif "3-Year" in title_text: key = "3-Year"
+                    elif "5-Year" in title_text: key = "5-Year"
+                    
+                    if key:
+                        # Get rows
+                        # Structure: div class="cards-4 perfInfo ..." -> div (row) -> div.symbol, div.perf
+                        # Note: The class name might contain hashes, rely on structure or partial class
+                        info_div = card.find("div", class_=lambda x: x and "perfInfo" in x)
+                        if info_div:
+                            # Direct children divs are the rows
+                            rows = info_div.find_all("div", recursive=False)
+                            if len(rows) >= 2:
+                                # Row 1: Stock
+                                stock_perf = rows[0].find("div", class_=lambda x: x and "perf" in x)
+                                
+                                # Row 2: Index
+                                index_row = rows[1]
+                                index_perf = index_row.find("div", class_=lambda x: x and "perf" in x)
+                                index_symbol = index_row.find("div", class_=lambda x: x and "symbol" in x)
+                                
+                                result["returns"][key] = {
+                                    "stock": stock_perf.get_text(strip=True) if stock_perf else "",
+                                    "index": index_perf.get_text(strip=True) if index_perf else "",
+                                    "index_name": index_symbol.get_text(strip=True) if index_symbol else ""
+                                }
+                            elif len(rows) == 1:
+                                stock_perf = rows[0].find("div", class_=lambda x: x and "perf" in x)
+                                result["returns"][key] = {
+                                    "stock": stock_perf.get_text(strip=True) if stock_perf else "",
+                                    "index": None,
+                                    "index_name": None
+                                }
+
+            # Helper to extract tickers from cards
+            def extract_from_cards(section_testid, key):
+                section = soup.find("section", {"data-testid": section_testid})
+                if section:
+                    # Find cards
+                    cards = section.find_all("section", {"data-testid": "card-container"})
+                    for card in cards:
+                        # Strategy 1: Compare To structure
+                        # <div class="tickerContainer"> <a ...> <div> <span>SYMBOL</span> <div class="longName">NAME</div> </div> </a>
+                        ticker_container = card.find("div", class_=lambda x: x and "tickerContainer" in x)
+                        if ticker_container:
+                            a_tag = ticker_container.find("a")
+                            if a_tag:
+                                # Symbol
+                                span = a_tag.find("span")
+                                # Name
+                                long_name = a_tag.find("div", class_=lambda c: c and "longName" in c)
+                                if span and long_name:
+                                    s = span.get_text(strip=True)
+                                    n = long_name.get_text(strip=True)
+                                    if s and s != symbol:
+                                        result[key].append({"symbol": s, "name": n})
+                                        continue
+
+                        # Strategy 2: People Also Watch structure
+                        # <div class="ticker-container"> ... <div data-testid="ticker-container"> ... <span class="symbol">SYMBOL</span> <span class="longName">NAME</span>
+                        # Note: People also watch has .ticker-container (lowercase/hyphen) vs tickerContainer
+                        # Let's try to find symbol and longName directly in the card if generic
+                        
+                        sym_span = card.find("span", class_=lambda x: x and "symbol" in x)
+                        name_span = card.find(class_=lambda x: x and "longName" in x)
+                        
+                        if sym_span:
+                            s = sym_span.get_text(strip=True)
+                            n = name_span.get_text(strip=True) if name_span else ""
+                            # Sometimes name is in title attribute
+                            if not n and name_span and name_span.has_attr("title"):
+                                n = name_span["title"]
+                            
+                            if s and s != symbol:
+                                result[key].append({"symbol": s, "name": n})
+
+            # 2. Compare To
+            extract_from_cards("compare-to", "compare_to")
+            
+            # 3. People Also Watch
+            extract_from_cards("people-also-watch", "people_also_watch")
+
+            # Dedup
+            def dedup(l):
+                seen = set()
+                new_l = []
+                for i in l:
+                    if i["symbol"] not in seen:
+                        seen.add(i["symbol"])
+                        new_l.append(i)
+                return new_l
+
+            result["compare_to"] = dedup(result["compare_to"])
+            result["people_also_watch"] = dedup(result["people_also_watch"])
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error scraping Yahoo analysis for {symbol}: {e}")
+            return {}

@@ -7,20 +7,20 @@ PLATFORM_GOOGLE = "google"
 PLATFORM_TRADINGVIEW = "tradingview"
 
 # 映射数据
-# 包含列: id, country_id, acronym, yahoo_stock_symbol_suffix, investing_code, google_code
+# 包含列: id, country_id, acronym, yahoo_stock_symbol_suffix, investing_code, google_code, yahoo_exchange_code
 EXCHANGE_MAPPING: List[Dict[str, str]] = [
-    {"acronym": "SSE", "yahoo_stock_symbol_suffix": "SS", "investing_code": "Shanghai", "google_code": "SHA", "country_code": "cn"},
-    {"acronym": "SZSE", "yahoo_stock_symbol_suffix": "SZ", "investing_code": "Shenzhen", "google_code": "SHE", "country_code": "cn"},
-    {"acronym": "HKEX", "yahoo_stock_symbol_suffix": "HK", "investing_code": "Hong Kong", "google_code": "HKG", "country_code": "hk"},
-    {"acronym": "NYSE", "yahoo_stock_symbol_suffix": "", "investing_code": "NYSE", "google_code": "NYSE", "country_code": "us"},
-    {"acronym": "NASDAQ", "yahoo_stock_symbol_suffix": "", "investing_code": "NASDAQ", "google_code": "NASDAQ", "country_code": "us"},
-    {"acronym": "SGX", "yahoo_stock_symbol_suffix": "SI", "investing_code": "Singapore", "google_code": "SGX", "country_code": "sg"},
-    {"acronym": "TSE", "yahoo_stock_symbol_suffix": "T", "investing_code": "Tokyo", "google_code": "TYO", "country_code": "jp"},
-    {"acronym": "NSE", "yahoo_stock_symbol_suffix": "NS", "investing_code": "NSE", "google_code": "NSE", "country_code": "in"},
-    {"acronym": "LSE", "yahoo_stock_symbol_suffix": "L", "investing_code": "London", "google_code": "LON", "country_code": "uk"},
-    {"acronym": "TSX", "yahoo_stock_symbol_suffix": "TO", "investing_code": "Toronto", "google_code": "TSE", "country_code": "ca"},
-    {"acronym": "TSXV", "yahoo_stock_symbol_suffix": "V", "investing_code": "TSXV", "google_code": "CVE", "country_code": "ca"},
-    {"acronym": "ASX", "yahoo_stock_symbol_suffix": "AX", "investing_code": "Sydney", "google_code": "ASX", "country_code": "au"},
+    {"acronym": "SSE", "yahoo_stock_symbol_suffix": "SS", "investing_code": "Shanghai", "google_code": "SHA", "country_code": "cn", "yahoo_exchange_code": "SHH"},
+    {"acronym": "SZSE", "yahoo_stock_symbol_suffix": "SZ", "investing_code": "Shenzhen", "google_code": "SHE", "country_code": "cn", "yahoo_exchange_code": "SHZ"},
+    {"acronym": "HKEX", "yahoo_stock_symbol_suffix": "HK", "investing_code": "Hong Kong", "google_code": "HKG", "country_code": "hk", "yahoo_exchange_code": "HKG"},
+    {"acronym": "NYSE", "yahoo_stock_symbol_suffix": "", "investing_code": "NYSE", "google_code": "NYSE", "country_code": "us", "yahoo_exchange_code": "NYQ"},
+    {"acronym": "NASDAQ", "yahoo_stock_symbol_suffix": "", "investing_code": "NASDAQ", "google_code": "NASDAQ", "country_code": "us", "yahoo_exchange_code": "NMS"},
+    {"acronym": "SGX", "yahoo_stock_symbol_suffix": "SI", "investing_code": "Singapore", "google_code": "SGX", "country_code": "sg", "yahoo_exchange_code": "SES"},
+    {"acronym": "TSE", "yahoo_stock_symbol_suffix": "T", "investing_code": "Tokyo", "google_code": "TYO", "country_code": "jp", "yahoo_exchange_code": "JPX"},
+    {"acronym": "NSE", "yahoo_stock_symbol_suffix": "NS", "investing_code": "NSE", "google_code": "NSE", "country_code": "in", "yahoo_exchange_code": "NSI"},
+    {"acronym": "LSE", "yahoo_stock_symbol_suffix": "L", "investing_code": "London", "google_code": "LON", "country_code": "uk", "yahoo_exchange_code": "LSE"},
+    {"acronym": "TSX", "yahoo_stock_symbol_suffix": "TO", "investing_code": "Toronto", "google_code": "TSE", "country_code": "ca", "yahoo_exchange_code": "TOR"},
+    {"acronym": "TSXV", "yahoo_stock_symbol_suffix": "V", "investing_code": "TSXV", "google_code": "CVE", "country_code": "ca", "yahoo_exchange_code": "VAN"},
+    {"acronym": "ASX", "yahoo_stock_symbol_suffix": "AX", "investing_code": "Sydney", "google_code": "ASX", "country_code": "au", "yahoo_exchange_code": "ASX"},
 ]
 
 def get_exchange_info_by_acronym(acronym: str) -> Optional[Dict[str, str]]:
@@ -61,7 +61,13 @@ def get_exchange_info_by_platform_code(platform: str, code: str) -> Optional[Dic
     for item in EXCHANGE_MAPPING:
         if str(item.get(target_key, "")).lower() == code_lower:
             return item
-            
+
+    # 特殊处理 Yahoo Screen Code (如 SHH, SHZ)
+    if platform == PLATFORM_YAHOO:
+        for item in EXCHANGE_MAPPING:
+            if item.get("yahoo_exchange_code") == code:
+                return item
+
     return None
 
 def get_exchanges_by_country(country_code: str) -> List[Dict[str, str]]:
@@ -82,6 +88,18 @@ def get_all_acronyms() -> List[str]:
     获取所有支持的交易所缩写列表。
     """
     return [item["acronym"] for item in EXCHANGE_MAPPING]
+
+def get_yahoo_screen_exchanges() -> List[str]:
+    """
+    获取用于Yahoo Screener的交易所代码列表 (例如 ['SHH', 'SHZ', ...])
+    """
+    return [item["yahoo_exchange_code"] for item in EXCHANGE_MAPPING if item.get("yahoo_exchange_code")]
+
+def get_yahoo_screen_mapping() -> Dict[str, str]:
+    """
+    获取 Yahoo Screen Code 到 系统Acronym 的映射 (例如 {'SHH': 'SSE', ...})
+    """
+    return {item["yahoo_exchange_code"]: item["acronym"] for item in EXCHANGE_MAPPING if item.get("yahoo_exchange_code")}
 
 def get_stock_info(stock_symbol: str, exchange_acronym: str, platform: str) -> Optional[Dict[str, str]]:
     """
