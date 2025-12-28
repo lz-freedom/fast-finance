@@ -455,6 +455,57 @@ class YahooService:
             
             return result
             
+            
         except Exception as e:
             logger.error(f"Error scraping Yahoo analysis for {symbol}: {e}")
+            return {}
+
+    @staticmethod
+    def get_batch_basic_info(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Batch fetch basic info for a list of symbols to get exchange and price.
+        Returns map: symbol -> {exchange: str, price: float}
+        """
+        if not symbols:
+            return {}
+            
+        try:
+            # yf.Tickers expects spac-separated string
+            tickers_str = " ".join(symbols)
+            tickers = yf.Tickers(tickers_str)
+            
+            result = {}
+            for symbol in symbols:
+                # Accessing tickers.tickers[symbol] is lazy, but accessing .fast_info triggers fetch
+                # Note: yfinance might change case of symbol key if not found exactly? 
+                # Usually it respects input case if valid.
+                
+                # Handle case where symbol might be transformed by yfinance (though usually it's fine)
+                # We iterate our input symbols and try to access the ticker object
+                
+                try:
+                    # Tickers dict keys are usually upper case
+                    t = tickers.tickers.get(symbol.upper(), None)
+                    if not t:
+                        continue
+                        
+                    fast_info = t.fast_info
+                    
+                    # Exchange is often available in fast_info directly or via property
+                    # fast_info keys: 'exchange', 'lastPrice', 'currency', ...
+                    
+                    exchange_code = fast_info.get('exchange')
+                    last_price = fast_info.get('lastPrice')
+                    
+                    result[symbol] = {
+                        "exchange": exchange_code,
+                        "currentPrice": last_price
+                    }
+                except Exception as inner_e:
+                    logger.warning(f"Failed to get fast_info for {symbol}: {inner_e}")
+                    continue
+                    
+            return result
+        except Exception as e:
+            logger.error(f"Error batch fetching info for symbols: {e}")
             return {}

@@ -161,9 +161,9 @@ import logging
 logger = logging.getLogger("fastapi")
 
 class YahooWebCrawlerResponse(BaseModel):
-    analysis_returns: Dict[str, Dict[str, Optional[str]]] = {}
-    analysis_compare_to: List[Dict[str, str]] = []
-    analysis_people_also_watch: List[Dict[str, str]] = []
+    analysis_returns: Dict[str, Optional[str]] = {}
+    analysis_compare_to: List[Dict[str, Any]] = []
+    analysis_people_also_watch: List[Dict[str, Any]] = []
 
 @router.post("/yahoo_web_crawler", response_model=BaseResponse[YahooWebCrawlerResponse], summary="雅虎网页爬虫", description="获取回报率、获取同类股票、获取大家都在看")
 async def yahoo_web_crawler(req: StockFinancialDataAggregationReq):
@@ -189,12 +189,37 @@ async def yahoo_web_crawler(req: StockFinancialDataAggregationReq):
         
         if not raw_data:
             return BaseResponse.success({
-                "analysis_returns": {},
+                "analysis_returns": {
+                    "index_name": "",
+                    "ytd_stock_change_percent": None,
+                    "ytd_index_change_percent": None,
+                    "one_years_stock_change_percent": None,
+                    "one_years_index_change_percent": None,
+                    "three_years_stock_change_percent": None,
+                    "three_years_index_change_percent": None,
+                    "five_years_stock_change_percent": None,
+                    "five_years_index_change_percent": None,
+                },
                 "analysis_compare_to": [],
                 "analysis_people_also_watch": []
             })
         
         # Process Tickers Logic
+        # 1. Collect all symbols
+        compare_to_raw = raw_data.get("compare_to", [])
+        people_also_watch_raw = raw_data.get("people_also_watch", [])
+        
+        all_symbols = set()
+        for item in compare_to_raw:
+            if item.get("symbol"): all_symbols.add(item.get("symbol"))
+        for item in people_also_watch_raw:
+             if item.get("symbol"): all_symbols.add(item.get("symbol"))
+             
+        # 2. Batch Fetch Info
+        batch_info = {}
+        if all_symbols:
+            batch_info = await run_in_threadpool(YahooService.get_batch_basic_info, list(all_symbols))
+
         def process_tickers(items: List[Dict[str, str]]):
             processed = []
             for item in items:
@@ -202,38 +227,104 @@ async def yahoo_web_crawler(req: StockFinancialDataAggregationReq):
                 name = item.get("name", "")
                 
                 if not t: continue
+                
+                # Check for batch info
+                info = batch_info.get(t) or batch_info.get(t.upper())
+                
+                # Rule: Discard if t is None (not found in yf)
+                if not info:
+                    continue 
 
-                # Parse Ticker: SYMBOL.SUFFIX
+                # Get Price
+                currentPrice = info.get("currentPrice")
+                
+                # Resolve Exchange Acronym
+                exchange_acronym = None
+                
+                # Strategy 1: Map via Yahoo Exchange Code (e.g. NMS, NYQ)
+                yahoo_exchange_code = info.get("exchange")
+                if yahoo_exchange_code:
+                     exchange_map = get_exchange_info_by_platform_code(PLATFORM_YAHOO, yahoo_exchange_code)
+                     if exchange_map:
+                         exchange_acronym = exchange_map["acronym"]
+
+                # Strategy 2: Fallback to Suffix if exchange code lookup failed
+                # Only use if we explicitly map the suffix in constants
+                if not exchange_acronym:
+                     parts = t.split(".")
+                     if len(parts) > 1:
+                         suffix = parts[-1]
+                         exchange_info = get_exchange_info_by_platform_code(PLATFORM_YAHOO, suffix)
+                         if exchange_info:
+                             exchange_acronym = exchange_info["acronym"]
+                
+                # Rule: Discard if exchange not in constants (no acronym resolved)
+                if not exchange_acronym:
+                    continue
+
+                # Normalize symbol
                 parts = t.split(".")
                 symbol_part = parts[0]
-                suffix = parts[-1] if len(parts) > 1 else ""
-                
-                exchange_acronym = suffix # Default to suffix if unknown
-                
-                if suffix:
-                    exchange_info = get_exchange_info_by_platform_code(PLATFORM_YAHOO, suffix)
-                    if exchange_info:
-                        exchange_acronym = exchange_info["acronym"]
-                else:
-                    exchange_acronym = "US" # Default for no suffix
-                
+
                 processed.append({
                     "stock_symbol": symbol_part,
                     "exchange_acronym": exchange_acronym,
-                    "name": name
+                    "name": name,
+                    "currentPrice": currentPrice
                 })
             return processed
 
+        # Flatten Returns Logic
+        returns_data = raw_data.get("returns", {})
+        flat_returns = {
+            "index_name": "",
+            "ytd_stock_change_percent": None,
+            "ytd_index_change_percent": None,
+            "one_years_stock_change_percent": None,
+            "one_years_index_change_percent": None,
+            "three_years_stock_change_percent": None,
+            "three_years_index_change_percent": None,
+            "five_years_stock_change_percent": None,
+            "five_years_index_change_percent": None,
+        }
+        
+        # Period Mapping
+        period_map = {
+            "YTD": ("ytd_stock_change_percent", "ytd_index_change_percent"),
+            "1-Year": ("one_years_stock_change_percent", "one_years_index_change_percent"),
+            "3-Year": ("three_years_stock_change_percent", "three_years_index_change_percent"),
+            "5-Year": ("five_years_stock_change_percent", "five_years_index_change_percent"),
+        }
+        
+        for period, data in returns_data.items():
+            if period in period_map:
+                stock_key, index_key = period_map[period]
+                flat_returns[stock_key] = data.get("stock")
+                flat_returns[index_key] = data.get("index")
+                # Set index name from the first available one
+                if data.get("index_name") and not flat_returns["index_name"]:
+                    flat_returns["index_name"] = data.get("index_name")
+
         return BaseResponse.success({
-            "analysis_returns": raw_data.get("returns", {}),
-            "analysis_compare_to": process_tickers(raw_data.get("compare_to", [])),
-            "analysis_people_also_watch": process_tickers(raw_data.get("people_also_watch", []))
+            "analysis_returns": flat_returns,
+            "analysis_compare_to": process_tickers(compare_to_raw),
+            "analysis_people_also_watch": process_tickers(people_also_watch_raw)
         })
 
     except Exception as e:
         logger.error(f"Error in yahoo_web_crawler: {e}")
         return BaseResponse.success({
-            "analysis_returns": {},
+            "analysis_returns": {
+                "index_name": "",
+                "ytd_stock_change_percent": None,
+                "ytd_index_change_percent": None,
+                "one_years_stock_change_percent": None,
+                "one_years_index_change_percent": None,
+                "three_years_stock_change_percent": None,
+                "three_years_index_change_percent": None,
+                "five_years_stock_change_percent": None,
+                "five_years_index_change_percent": None,
+            },
             "analysis_compare_to": [],
             "analysis_people_also_watch": []
         })
