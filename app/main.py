@@ -59,7 +59,16 @@ def create_app() -> FastAPI:
 
     # 注册 TradingView 路由
     from app.api.v1.endpoints import tradingview
+    from app.api.v1.endpoints import tradingview
     app.include_router(tradingview.router, prefix=f"{settings.API_V1_STR}/tradingview", tags=["TradingView"])
+
+    # 注册 TradingView Sync 路由
+    from app.api.v1.endpoints import tradingview_sync
+    app.include_router(tradingview_sync.router, prefix=f"{settings.API_V1_STR}/tools/tradingview-sync", tags=["TradingView 数据同步"])
+
+    # 注册 Investing Sync 路由
+    from app.api.v1.endpoints import tools_investing
+    app.include_router(tools_investing.router, prefix=f"{settings.API_V1_STR}/tools/investing-sync", tags=["Investing 数据同步"])
 
     # 注册 Yahoo 路由
     app.include_router(yahoo.router, prefix=f"{settings.API_V1_STR}/yahoo", tags=["Yahoo Finance"])

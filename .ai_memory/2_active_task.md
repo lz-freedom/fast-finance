@@ -1,29 +1,25 @@
-# 当前任务状态
+# 2. 从 TradingView 获取数据遍历 Exchange
 
 ## 正在进行的任务
-- [x] 初始化 FastAPI 项目结构
-- [x] 实现核心配置 (日志, API 前缀, 异常处理)
-- [x] 编写 Docker 和 Docker Compose 配置
-- [x] 验证项目运行
-- [x] 重构统一响应格式 (HTTP 200, code/message/data)
-- [x] 编写项目使用文档 (README.md)
-- [x] 集成 TradingView 接口 (Analysis, Multiple, Search)
-- [x] 将 Investing API 改为 POST 方法
-- [x] 统一 Investing API 返回结构 (BaseResponse)
-- [x] 实现 Yahoo Finance 活跃股排行接口 (Region/MarketCap/Volume/Exchange)
-- [x] 实现 Google Finance 接口 (Search/Detail/History)
-- [x] 实现 Yahoo Finance 活跃股排行接口 (Region/MarketCap/Volume/Exchange)
-- [x] 实现 Google Finance 接口 (Search/Detail/History)
-- [x] 实现 Google Finance 网页爬虫 (Scrape Quote Page)
-    - [x] 目标: `https://www.google.com/finance/quote/{symbol}:{exchange}`
-    - [x] 内容: 头部/价格, 关键统计 (Stats), 财务信息 (Financials), 同类比较 (Peers), 简介 (About)
-    - [x] 技术: HTML Parsing (BeautifulSoup/lxml) via `requests`
+- [x] 创建 SQLite 表 `tradingview_stock`
+- [x] 实现 TradingView 数据获取逻辑
+- [x] 实现数据存储逻辑
+- [x] 实现 API 接口 (全 POST + BaseResponse)
+- [x] 新增 IPO 和 Sector 数据字段
+- [x] 实现 API 参数过滤 `ipo_offer_date_type`
+- [x] 修正数据库时间时区 (UTC+8)
+- [x] 清理重复 Symbol (去除 .U 如果存在 .UN/.UM)
+- [x] 强制重构接口为 POST 方法
+- [x] 格式化 IPO 日期 (YYYY-MM-DD，修复负数时间戳问题)
+- [x] API 命名和文档中文化
+- [x] 支持 Investing.com 数据同步 (Tools 路由，中英双语，表结构)
 
 ## 任务上下文
-TradingView, Yahoo, Google API (RPC) 均已完成。
-用户新增需求：直接爬取 Google Finance 网页以获取更丰富或可视化的数据（覆盖提供的截图内容）。
-需要解析 HTML，处理混淆类名或利用结构定位。
+用户要求新增 Investing.com 数据同步功能，并调整路由结构。
+- 已创建 `investing_stock` 表，包含中英双语字段 (`name_cn`, `name_en` 等)。
+- 已实现 `InvestingSyncService`，逻辑：先抓中文 (`domain-id: cn`)，再抓英文 (`domain-id: us`)，最后合并入库。
+- 已新增 Tools 路由组 `/api/v1/tools/investing-sync`，并迁移 TradingView Sync 到 `/api/v1/tools/tradingview-sync`。
+- 验证：数据已成功入库，中英文名称和行业信息一一对应。
 
 ## 下一步计划
-验证 Google Finance 接口功能。
-等待用户反馈。
+任务已全部完成。等待新需求。

@@ -21,12 +21,6 @@ EXCHANGE_MAPPING: List[Dict[str, str]] = [
     {"acronym": "TSX", "yahoo_stock_symbol_suffix": "TO", "investing_code": "Toronto", "google_code": "TSE", "country_code": "ca", "yahoo_exchange_code": "TOR"},
     {"acronym": "TSXV", "yahoo_stock_symbol_suffix": "V", "investing_code": "TSXV", "google_code": "CVE", "country_code": "ca", "yahoo_exchange_code": "VAN"},
     {"acronym": "ASX", "yahoo_stock_symbol_suffix": "AX", "investing_code": "Sydney", "google_code": "ASX", "country_code": "au", "yahoo_exchange_code": "ASX"},
-    {"acronym": "KSE", "yahoo_stock_symbol_suffix": "KS", "investing_code": "Seoul", "google_code": "KRX", "country_code": "kr", "yahoo_exchange_code": "KSC"},
-    {"acronym": "TWSE", "yahoo_stock_symbol_suffix": "TW", "investing_code": "Taiwan", "google_code": "TPE", "country_code": "tw", "yahoo_exchange_code": "TAI"},
-    {"acronym": "TPEX", "yahoo_stock_symbol_suffix": "TWO", "investing_code": "Taipei", "google_code": "TWO", "country_code": "tw", "yahoo_exchange_code": "TWO"},
-    {"acronym": "NASDAQ", "yahoo_stock_symbol_suffix": "", "investing_code": "NASDAQ", "google_code": "NASDAQ", "country_code": "us", "yahoo_exchange_code": "NGM"},
-    {"acronym": "NASDAQ", "yahoo_stock_symbol_suffix": "", "investing_code": "NASDAQ", "google_code": "NASDAQ", "country_code": "us", "yahoo_exchange_code": "NCM"},
-    {"acronym": "NYSE", "yahoo_stock_symbol_suffix": "", "investing_code": "NYSE", "google_code": "NYSE", "country_code": "us", "yahoo_exchange_code": "ASE"},
 ]
 
 def get_exchange_info_by_acronym(acronym: str) -> Optional[Dict[str, str]]:
