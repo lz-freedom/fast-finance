@@ -1,7 +1,10 @@
 import yfinance as yf
-from yfinance import EquityQuery
+
 import pandas as pd
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
+from datetime import date
+from dateutil.relativedelta import relativedelta
+import numpy as np
 import json
 import logging
 import requests
@@ -10,6 +13,9 @@ import platformdirs as _ad
 import os
 from app.core.utils import recursive_camel_case
 from app.core.config import settings
+from app.core.constants import get_stock_info, PLATFORM_YAHOO
+from app.core.database import SQLiteManager
+from io import StringIO
 
 logger = logging.getLogger("fastapi")
 
@@ -28,7 +34,8 @@ try:
     logger.info(f"yfinance cache location set to: {CACHE_DIR}")
 except Exception as e:
     logger.warning(f"Failed to set yfinance cache location: {e}")
-
+    
+yf.config.debug.logging = True
 # Apply Proxy Configuration
 if settings.PROXY_YAHOO:
     try:
@@ -39,6 +46,8 @@ if settings.PROXY_YAHOO:
         logger.info(f"yfinance proxy set to: {settings.PROXY_YAHOO}")
     except Exception as e:
         logger.error(f"Failed to set yfinance proxy: {e}")
+
+# Simple in-memory cache removed. Using SQLiteManager.
 
 class YahooService:
     @staticmethod
@@ -57,6 +66,29 @@ class YahooService:
         except Exception as e:
             logger.warning(f"Error converting DataFrame: {e}")
             return None
+
+    @staticmethod
+    def _sanitize_value(val: Any) -> Any:
+        """
+        Recursively sanitizes values to ensure they are JSON compliant.
+        - Converts NaN, Infinity, -Infinity to None.
+        - Converts numpy types to native python types.
+        """
+        if isinstance(val, float):
+            if np.isnan(val) or np.isinf(val):
+                return None
+            return val
+        elif isinstance(val, (np.integer, np.int64, np.int32)):
+            return int(val)
+        elif isinstance(val, (np.floating, np.float64, np.float32)):
+            if np.isnan(val) or np.isinf(val):
+                return None
+            return float(val)
+        elif isinstance(val, dict):
+            return {k: YahooService._sanitize_value(v) for k, v in val.items()}
+        elif isinstance(val, list):
+            return [YahooService._sanitize_value(v) for v in val]
+        return val
 
     @staticmethod
     def get_ticker_info(symbol: str) -> Dict[str, Any]:
@@ -282,6 +314,7 @@ class YahooService:
         
         for region in regions:
             try:
+                from yfinance import EquityQuery
                 query = EquityQuery("and", [
                     EquityQuery("eq", ["region", region]),
                     EquityQuery("gte", ["intradaymarketcap", min_intraday_market_cap]),
@@ -509,3 +542,467 @@ class YahooService:
         except Exception as e:
             logger.error(f"Error batch fetching info for symbols: {e}")
             return {}
+
+    @staticmethod
+    def get_batch_stock_base_data(items: List[Dict[str, str]], is_return_history: bool = False) -> List[Dict[str, Any]]:
+        """
+        批量获取股票基础数据。
+        :param items: List of dicts with keys "stock_symbol", "exchange_acronym"
+        :param is_return_history: Whether to include historical k-line data in the response
+        """
+        if not items:
+            return []
+
+        # Prepare symbols for batch fetching
+        # We need to resolve yahoo symbols first
+        # map: yahoo_symbol -> {stock_symbol: ..., exchange_acronym: ...}
+        yahoo_symbol_map = {}
+        
+        for item in items:
+            raw_symbol = item.get("stock_symbol")
+            acronym = item.get("exchange_acronym")
+            
+            if not raw_symbol or not acronym:
+                continue
+                
+            info_map = get_stock_info(raw_symbol, acronym, PLATFORM_YAHOO)
+            if info_map:
+                y_sym = info_map["stock_symbol"]
+                yahoo_symbol_map[y_sym] = {
+                    "stock_symbol": raw_symbol,
+                    "exchange_acronym": acronym,
+                    "yahoo_symbol": y_sym
+                }
+        
+        unique_yahoo_symbols = list(yahoo_symbol_map.keys())
+        
+        # Buffer days for history fetching to calculate returns
+        BUFFER_DAYS = 35
+        # Years for returns
+        YEARS = (1, 3, 5)
+
+        logger.info(f"Batch fetching base data for {len(unique_yahoo_symbols)} symbols")
+
+        try:
+            tickers = yf.Tickers(" ".join(unique_yahoo_symbols))
+            results = []
+
+            for y_sym in unique_yahoo_symbols:
+                original_info = yahoo_symbol_map[y_sym]
+                
+                try:
+                    # Access ticker
+                    t = tickers.tickers[y_sym]
+                    
+                    
+                    # 1. Fetch Info
+                    info = t.info 
+                    if info is None:
+                        logger.warning(f"Info is None for {y_sym}")
+                        info = {}
+
+                    # Get Timezone early for cache correction
+                    tz_name = info.get("exchangeTimezoneName")
+                    
+                    # --- Core Logic from User for Returns ---
+                    market_state = info.get("marketState") or ""
+                    # Normalize strings for comparison
+                    ms_upper = str(market_state).upper()
+                    use_today = ("REGULAR" in ms_upper) or ("POST" in ms_upper)
+                    
+                    # Short history for "latest trading day" check
+                    hist_short = t.history(period="10d", interval="1d", auto_adjust=False)
+                    
+                    if hist_short is None or hist_short.empty or "Adj Close" not in hist_short.columns:
+                        logger.warning(f"No history found for {y_sym}")
+                        # Even if no history, we try to return profile info? 
+                        # User snippet continued with None for returns. behavior: append minimalist row
+                        # But we want to return full profile if possible. 
+                        # Let's proceed with defaults for returns fields.
+                        last_hist_date = None
+                        last_hist_adj = None
+                        as_of_date = date.today()
+                        end_price = None
+                    else:
+                        hist_short = hist_short.sort_index()
+                        last_hist_dt = hist_short.index[-1]
+                        last_hist_date = last_hist_dt.date()
+                        last_hist_adj = float(hist_short.iloc[-1]["Adj Close"])
+                        
+                        if use_today:
+                            end_price = info.get("currentPrice")
+                            if end_price is None:
+                                # Fallback or keep None
+                                end_price = None
+                            
+                            tz = info.get("exchangeTimezoneName")
+                            # If we can't determine current time from timezone, use UTC or server time?
+                            # pd.Timestamp.now(tz=tz) is good
+                            try:
+                                as_of_date = pd.Timestamp.now(tz=tz).date() if tz else date.today()
+                            except:
+                                as_of_date = date.today()
+                        else:
+                            end_price = last_hist_adj
+                            as_of_date = last_hist_date
+                    
+                    # --- Calculate Returns ---
+                    # We need history for 5 years back from as_of_date
+                    calculated_returns = {
+                        "YTD": None, "3M": None, "6M": None, "1Y": None, "3Y": None, "5Y": None
+                    }
+                    calculated_ranges = {
+                        "YTD": None, "3M": None, "6M": None, "1Y": None, "3Y": None, "5Y": None
+                    }
+                    
+                    full_history_list = []
+                    
+                    # We always need history to calculate returns, even if is_return_history is False
+                    if end_price is not None and as_of_date is not None:
+                        # Construct Cache Key
+                        # Key rules: Exchange Current Date + Yahoo Symbol + Market State
+                        # as_of_date is derived from exchange timezone current time or close time, so it represents "Exchange Current Date" well enough for now
+                        # However, user asked for "对应交易所的当前日期". as_of_date is exactly that (calculated above).
+                        cache_key = f"{as_of_date}_{y_sym}_{market_state}"
+                        
+                        hist_long = None
+                        
+                        # Try DB Cache
+                        cached_json = SQLiteManager.get_history_cache(cache_key)
+                        if cached_json:
+                             logger.info(f"Cache hit for {cache_key}")
+                             # Reconstruct DataFrame from JSON
+                             # We use read_json with orient='split' or 'table' or 'records'. 
+                             # 'index' orient is safer for time series if index is unique.
+                             # Let's assume we saved with orient='index' or 'split'.
+                             # For consistency with "Safe DataFrame" usually handling 'records', 
+                             # but here we need the INDEX (Date) preserved.
+                             
+                             # Let's save/load with date_unit='ns' to preserve precision if possible
+                             try:
+                                 hist_long = pd.read_json(StringIO(cached_json), orient='index')
+                                 # Ensure index is datetime
+                                 hist_long.index = pd.to_datetime(hist_long.index)
+                                 # Explicitly set index name, as read_json(orient='index') loses it
+                                 hist_long.index.name = 'Date'
+                                 
+                                 # Fix Timezone: Cache saves as UTC ISO, which might shift the date (e.g. Shanghai +8)
+                                 if tz_name:
+                                     try:
+                                         if hist_long.index.tz is None:
+                                            # If naive (unlikely with ISO Z), localize to UTC first
+                                            hist_long.index = hist_long.index.tz_localize("UTC")
+                                         
+                                         hist_long.index = hist_long.index.tz_convert(tz_name)
+                                     except Exception as e:
+                                         logger.warning(f"Failed to convert timezone for {y_sym}: {e}")
+                             except Exception as e:
+                                 logger.error(f"Failed to load cache: {e}")
+                                 hist_long = None
+
+                        if hist_long is None:
+                             # Fetch deep history
+                             start_date = as_of_date - relativedelta(years=5, days=BUFFER_DAYS)
+                             end_date_query = as_of_date + relativedelta(days=1)
+                             hist_long = t.history(start=start_date, end=end_date_query, interval="1d", auto_adjust=False)
+                             
+                             # Save to Cache
+                             if not hist_long.empty:
+                                 try:
+                                     # Convert to JSON string (orient='index' preserves Date index)
+                                     # date_format='iso' makes it readable and portable
+                                     json_str = hist_long.to_json(orient='index', date_format='iso')
+                                     SQLiteManager.upsert_history_cache(cache_key, json_str)
+                                 except Exception as e:
+                                     logger.error(f"Failed to save cache: {e}")
+                        
+                        if hist_long is not None and not hist_long.empty and "Adj Close" in hist_long.columns:
+                             hist_long = hist_long.sort_index()
+                             
+                             # Helper function
+                             def get_adj_prev(anchor: date):
+                                 sub = hist_long[hist_long.index.date <= anchor]
+                                 if sub.empty:
+                                     return None, None
+                                 row = sub.iloc[-1]
+                                 return float(row["Adj Close"]), row.name.date()
+
+                             # YTD
+                             ytd_anchor = date(as_of_date.year - 1, 12, 31)
+                             p0, p0_date = get_adj_prev(ytd_anchor)
+                             if p0:
+                                 calculated_returns["YTD"] = (end_price / p0) - 1
+                                 if p0_date:
+                                     calculated_ranges["YTD"] = f"{p0_date.isoformat()}:{as_of_date.isoformat()}"
+
+                             # Periods
+                             periods = {
+                                 "3M": relativedelta(months=3),
+                                 "6M": relativedelta(months=6),
+                                 "1Y": relativedelta(years=1),
+                                 "3Y": relativedelta(years=3),
+                                 "5Y": relativedelta(years=5)
+                             }
+                             
+                             for key, delta in periods.items():
+                                 anchor = as_of_date - delta
+                                 p0, p0_date = get_adj_prev(anchor)
+                                 if p0:
+                                     calculated_returns[key] = (end_price / p0) - 1
+                                     if p0_date:
+                                         calculated_ranges[key] = f"{p0_date.isoformat()}:{as_of_date.isoformat()}"
+                             
+                             # Format History for Response (Last 5 Years)
+                             # Filter hist_long to only include records within true 5y window
+                             # User asked for "近5年每个交易日..."
+                             if is_return_history:
+                                 cutoff = as_of_date - relativedelta(years=5)
+                                 hist_final = hist_long[hist_long.index.date >= cutoff]
+                                 
+                                 # Reset index to access Date
+                                 hist_final = hist_final.reset_index()
+                                 
+                                 # Robust Date Column Detection
+                                 date_col = 'Date'
+                                 if 'Date' not in hist_final.columns:
+                                     if 'Datetime' in hist_final.columns:
+                                         date_col = 'Datetime'
+                                     elif 'index' in hist_final.columns:
+                                         date_col = 'index'
+                                     else:
+                                         # Fallback: take first column if likely a date?
+                                         # For now, stick to safe knowns.
+                                         # If we set index.name='Date' above, reset_index gives 'Date'.
+                                         pass 
+                                 
+                                 for _, row in hist_final.iterrows():
+                                     full_history_list.append({
+                                         "date": row[date_col].isoformat() if hasattr(row[date_col], 'isoformat') else str(row[date_col]),
+                                         "open": row.get('Open'),
+                                         "high": row.get('High'),
+                                         "low": row.get('Low'),
+                                         "close": row.get('Close'),
+                                         "adj_close": row.get('Adj Close'),
+                                         "volume": row.get('Volume')
+                                     })
+                                     
+                                 # Reverse Sort (Newest first)
+                                 full_history_list.sort(key=lambda x: x['date'], reverse=True)
+
+                    # --- Construct Response Item ---
+                    # Helper safe get
+                    def g(k, default=None):
+                        return info.get(k, default)
+
+                    # Company Officers
+                    officers_raw = g("companyOfficers", [])
+                    ceo_info = None
+                    for off in officers_raw:
+                        title = str(off.get('title', '')).lower()
+                        if 'ceo' in title or 'chief executive officer' in title:
+                            ceo_info = {
+                                "name": off.get('name'),
+                                "age": off.get('age'),
+                                "birth_year": off.get('yearBorn'),
+                                "total_pay": off.get('totalPay')
+                            }
+                            break
+                    # If no CEO found, maybe take the first one or leave None? 
+                    # Let's leave None if not sure.
+
+                    # Sanitize and build
+                    # Note: We rely on recursive_camel_case or manual mapping?
+                    # The user provided a strict mapping list. We should follow it.
+                    
+                    # Name logic: displayName -> shortName -> longName
+                    name_val = g("displayName")
+                    if not name_val:
+                        name_val = g("shortName")
+                    if not name_val:
+                        name_val = g("longName")
+                        
+                    item_data = {
+                        "symbol": original_info["stock_symbol"],
+                        "exchange_acronym": original_info["exchange_acronym"],
+                        "yahoo_symbol": y_sym,
+                        "yahoo_exchange": g("exchange"),
+                        
+                        # New Fields
+                        "name": name_val,
+                        "exchange_timezone_name": g("exchangeTimezoneName"),
+                        "exchange_timezone_short_name": g("exchangeTimezoneShortName"),
+                        "gmt_off_set_milliseconds": g("gmtOffSetMilliseconds"),
+                        "currency": g("currency"),
+                        
+                        "current_price": g("currentPrice"),
+                        "long_business_summary": g("longBusinessSummary"),
+                        "sector": g("sector"),
+                        "industry": g("industry"),
+                        "country": g("country"),
+                        "state": g("state"),
+                        "city": g("city"),
+                        "zip": g("zip"),
+                        "address_line_1": g("address1"),
+                        "address_line_2": g("address2"),
+                        "phone": g("phone"),
+                        "full_time_employees": g("fullTimeEmployees"),
+                        "website": g("website"),
+                        "investor_relations_website": g("irWebsite"),
+                        "ceo_info": ceo_info,
+                        "held_percent_insiders": g("heldPercentInsiders"),
+                        "held_percent_institutions": g("heldPercentInstitutions"),
+                        "market_state": g("marketState"),
+                        "previous_close": g("previousClose"),
+                        "volume": g("volume"),
+                        # turnover = price * volume
+                        "turnover": (g("currentPrice") * g("volume")) if (g("currentPrice") and g("volume")) else None,
+                        "open": g("open"),
+                        "day_low": g("dayLow"),
+                        "day_high": g("dayHigh"),
+                        "regular_market_volume": g("regularMarketVolume"),
+                        "regular_market_previous_close": g("regularMarketPreviousClose"),
+                        "regular_market_open": g("regularMarketOpen"),
+                        "regular_market_day_low": g("regularMarketDayLow"),
+                        "regular_market_day_high": g("regularMarketDayHigh"),
+                        "dividend_rate": g("dividendRate"),
+                        "dividend_yield": g("dividendYield"),
+                        "ex_dividend_date": g("exDividendDate"),
+                        "payout_ratio": g("payoutRatio"),
+                        "five_year_avg_dividend_yield": g("fiveYearAvgDividendYield"),
+                        "last_dividend_value": g("lastDividendValue"),
+                        "last_dividend_date": g("lastDividendDate"),
+                        "trailing_annual_dividend_rate": g("trailingAnnualDividendRate"),
+                        "trailing_annual_dividend_yield": g("trailingAnnualDividendYield"),
+                        "beta": g("beta"),
+                        "pe_ttm": g("trailingPE"),
+                        # pe_static = currentPrice / trailingEps
+                        "pe_static": (g("currentPrice") / g("trailingEps")) if (g("currentPrice") and g("trailingEps")) else None,
+                        "pe_dynamic": g("forwardPE"),
+                        "price_to_sales_trailing_12_months": g("priceToSalesTrailing12Months"),
+                        "price_to_book": g("priceToBook"),
+                        "dividend_ttm": g("trailingAnnualDividendRate"), # Duplicate as per user reg
+                        "dividend_yield_ttm": g("trailingAnnualDividendYield"), # Duplicate
+                        # turnover_rate = volume / floatShares
+                        "turnover_rate": (g("volume") / g("floatShares")) if (g("volume") and g("floatShares")) else None,
+                        # turnover_value = currentPrice * floatShares ?? User said "流通值" -> Market Cap of float? 
+                        # User formula: currentPrice * floatShares
+                        "turnover_value": (g("currentPrice") * g("floatShares")) if (g("currentPrice") and g("floatShares")) else None,
+                        # amplitude = (dayHigh - dayLow) / previousClose
+                        "amplitude": ((g("dayHigh") - g("dayLow")) / g("previousClose")) if (g("dayHigh") is not None and g("dayLow") is not None and g("previousClose")) else None,
+                        # volume_ratio = volume / averageVolume
+                        "volume_ratio": (g("volume") / g("averageVolume")) if (g("volume") and g("averageVolume")) else None,
+                        # average_price = (high + low) / 2
+                        "average_price": ((g("dayHigh") + g("dayLow")) / 2) if (g("dayHigh") is not None and g("dayLow") is not None) else None,
+                        "trailing_peg_ratio": g("trailingPegRatio"),
+                        "bid": g("bid"),
+                        "ask": g("ask"),
+                        "bid_size": g("bidSize"),
+                        "ask_size": g("askSize"),
+                        "average_volume": g("averageVolume"),
+                        "average_volume_10days": g("averageVolume10days"),
+                        "average_daily_volume_10day": g("averageDailyVolume10Day"),
+                        "market_cap": g("marketCap"),
+                        "enterprise_value": g("enterpriseValue"),
+                        "float_shares": g("floatShares"),
+                        "shares_outstanding": g("sharesOutstanding"),
+                        "implied_shares_outstanding": g("impliedSharesOutstanding"),
+                        "fifty_two_week_low": g("fiftyTwoWeekLow"),
+                        "fifty_two_week_high": g("fiftyTwoWeekHigh"),
+                        "all_time_high": g("allTimeHigh"), # yf might not have this, but user asked
+                        "all_time_low": g("allTimeLow"), # Not directly provided usually
+                        "fifty_two_week_range": g("fiftyTwoWeekRange"),
+                        "fifty_two_week_change_percent": g("fiftyTwoWeekChangePercent"),
+                        "sand_p_52_week_change": g("SandP52WeekChange"),
+                        "fifty_day_average": g("fiftyDayAverage"),
+                        "two_hundred_day_average": g("twoHundredDayAverage"),
+                        "fifty_day_average_change": g("fiftyDayAverageChange"),
+                        "fifty_day_average_change_percent": g("fiftyDayAverageChangePercent"),
+                        "two_hundred_day_average_change": g("twoHundredDayAverageChange"),
+                        "two_hundred_day_average_change_percent": g("twoHundredDayAverageChangePercent"),
+                        "shares_short": g("sharesShort"),
+                        "shares_short_prior_month": g("sharesShortPriorMonth"),
+                        "shares_short_previous_month_date": g("sharesShortPreviousMonthDate"),
+                        "date_short_interest": g("dateShortInterest"),
+                        "shares_percent_shares_out": g("sharesPercentSharesOut"),
+                        "short_ratio": g("shortRatio"),
+                        "short_percent_of_float": g("shortPercentOfFloat"),
+                        "total_cash": g("totalCash"),
+                        "total_cash_per_share": g("totalCashPerShare"),
+                        "total_debt": g("totalDebt"),
+                        "debt_to_equity": g("debtToEquity"),
+                        "total_revenue": g("totalRevenue"),
+                        "revenue_per_share": g("revenuePerShare"),
+                        "revenue_growth": g("revenueGrowth"),
+                        "net_income_to_common": g("netIncomeToCommon"),
+                        "earnings_growth": g("earningsGrowth"),
+                        "earnings_quarterly_growth": g("earningsQuarterlyGrowth"),
+                        "ebitda": g("ebitda"),
+                        "enterprise_to_revenue": g("enterpriseToRevenue"),
+                        "enterprise_to_ebitda": g("enterpriseToEbitda"),
+                        "profit_margin": g("profitMargin"),
+                        "gross_margin": g("grossMargin"),
+                        "ebitda_margin": g("ebitdaMargin"),
+                        "operating_margin": g("operatingMargin"),
+                        "return_on_assets": g("returnOnAssets"),
+                        "return_on_equity": g("returnOnEquity"),
+                        "free_cashflow": g("freeCashflow"),
+                        "operating_cashflow": g("operatingCashflow"),
+                        "trailing_eps": g("trailingEps"),
+                        "forward_eps": g("forwardEps"),
+                        "eps_trailing_twelve_months": g("epsTrailingTwelveMonths"), # often same as trailingEps
+                        "eps_forward": g("epsForward"), # same as forwardEps
+                        "eps_current_year": g("epsCurrentYear"),
+                        "price_eps_current_year": g("priceEpsCurrentYear"),
+                        "last_split_factor": g("lastSplitFactor"),
+                        "last_split_date": g("lastSplitDate"),
+                        "pre_market_price": g("preMarketPrice"),
+                        "pre_market_change": g("preMarketChange"),
+                        "pre_market_change_percent": g("preMarketChangePercent"),
+                        # "pre_market_time": g("preMarketTime"), # Ensure timestamp is clear? 
+                        
+                        "post_market_change_percent": g("postMarketChangePercent"),
+                        "post_market_price": g("postMarketPrice"),
+                        "post_market_change": g("postMarketChange"),
+                        # "post_market_time": g("postMarketTime"),
+                        
+                        # Calculated
+                        "year_to_date_return": calculated_returns["YTD"],
+                        "year_to_date_trading_date_range": calculated_ranges["YTD"],
+                        
+                        "three_month_return": calculated_returns["3M"],
+                        "three_month_trading_date_range": calculated_ranges["3M"],
+                        
+                        "six_month_return": calculated_returns["6M"],
+                        "six_month_trading_date_range": calculated_ranges["6M"],
+                        
+                        "one_year_return": calculated_returns["1Y"],
+                        "one_year_trading_date_range": calculated_ranges["1Y"],
+                        
+                        "three_year_return": calculated_returns["3Y"],
+                        "three_year_trading_date_range": calculated_ranges["3Y"],
+                        
+                        "five_year_return": calculated_returns["5Y"],
+                        "five_year_trading_date_range": calculated_ranges["5Y"],
+                        
+                        "history": full_history_list if is_return_history else None
+                    }
+                    
+                    # Sanitize (NaN -> None)
+                    clean_item = YahooService._sanitize_value(item_data)
+                    results.append(clean_item)
+
+                except Exception as inner_e:
+                    logger.error(f"Error processing {y_sym}: {inner_e}")
+                    # Return partial or empty for this symbol
+                    results.append({
+                        "symbol": original_info["stock_symbol"],
+                        "exchange_acronym": original_info["exchange_acronym"],
+                        "yahoo_symbol": y_sym,
+                        # Add error note?
+                    })
+            
+            return results
+
+        except Exception as e:
+            logger.error(f"Error in get_batch_stock_base_data: {e}")
+            return []

@@ -1277,3 +1277,122 @@
   }
 }
 ```
+
+---
+
+## 9. 批量获取股票基础信息 (Batch Stock Base Data)
+
+**URL**: `/api/v1/yahoo/batch/get_stock_base_data` (POST)
+
+### 请求参数
+
+**注意**: 该接口接收一个 JSON 对象，包含 `is_return_history` 和 `stock_list`。
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| is_return_history | bool | 否 | false | 是否返回历史K线数据 |
+| stock_list | list[object] | 是 | - | 股票列表 |
+
+**stock_list 内部对象参数**:
+
+| 参数名 | 类型 | 必填 | 说明 |
+| :--- | :--- | :--- | :--- |
+| stock_symbol | str | 是 | 股票代码 (如 600519) |
+| exchange_acronym | str | 是 | 交易所简称 (如 SSE, NASDAQ) |
+
+**示例请求体**:
+```json
+{
+  "is_return_history": false,
+  "stock_list": [
+    {
+      "stock_symbol": "AAPL",
+      "exchange_acronym": "NASDAQ"
+    },
+    {
+      "stock_symbol": "601933",
+      "exchange_acronym": "SSE"
+    }
+  ]
+}
+```
+
+### 响应参数 (List Item)
+
+包含股票基本信息、市场数据、最新的交易数据以及计算出的各周期收益率。如果 `is_return_history` 为 `true`，`history` 字段将包含最近 5 年的历史数据。
+
+| 字段名 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| stock_symbol | str | 股票代码 |
+| exchange_acronym | str | 交易所简称 |
+| name | str | 股票名称 |
+| currency | str | 货币 |
+| exchange_timezone_name | str | 交易所时区名 |
+| exchange_timezone_short_name | str | 交易所时区简称 |
+| gmt_off_set_milliseconds | int | 时区偏移(毫秒) |
+| quote_type | str | 证券类型 |
+| market_state | str | 市场状态 |
+| regular_market_price | float | 常规市场价格 |
+| regular_market_previous_close | float | 常规市场昨收 |
+| regular_market_open | float | 常规市场开盘 |
+| regular_market_day_high | float | 常规市场最高 |
+| regular_market_day_low | float | 常规市场最低 |
+| regular_market_volume | int | 常规市场成交量 |
+| bid | float | 买一价 |
+| ask | float | 卖一价 |
+| market_cap | int | 市值 |
+| beta | float | Beta系数 |
+| trailing_pe | float | 滚动市盈率 (TTM) |
+| forward_pe | float | 远期市盈率 |
+| eps_trailing_twelve_months | float | 滚动EPS (TTM) |
+| eps_forward | float | 远期EPS |
+| fifty_two_week_low | float | 52周最低 |
+| fifty_two_week_high | float | 52周最高 |
+| fifty_two_week_change_percent | float | 52周涨跌幅 |
+| all_time_high | float | 历史最高 |
+| all_time_low | float | 历史最低 |
+| average_volume_10_days | int | 10日平均成交量 |
+| average_volume_3_month | int | 3月平均成交量 |
+| dividend_yield | float | 股息率 |
+| dividend_rate | float | 股息 |
+| trailing_annual_dividend_yield | float | 滚动年度股息率 |
+| shares_outstanding | int | 总股本 |
+| float_shares | int | 流通股 |
+| held_percent_insiders | float | 内部持股比例 |
+| held_percent_institutions | float | 机构持股比例 |
+| short_ratio | float | 做空比率 |
+| year_to_date_return | float |年初至今收益率 |
+| year_to_date_trading_date_range | str | 年初至今交易日区间 (Start:End) |
+| three_month_return | float | 近3月收益率 |
+| three_month_trading_date_range | str | 近3月交易日区间 |
+| six_month_return | float | 近6月收益率 |
+| six_month_trading_date_range | str | 近6月交易日区间 |
+| one_year_return | float | 近1年收益率 |
+| one_year_trading_date_range | str | 近1年交易日区间 |
+| three_year_return | float | 近3年收益率 |
+| three_year_trading_date_range | str | 近3年交易日区间 |
+| five_year_return | float | 近5年收益率 |
+| five_year_trading_date_range | str | 近5年交易日区间 |
+| company_officers | list | 高管列表 |
+| history | list | 历史K线 (可选) |
+
+### 示例响应
+
+```json
+[
+    {
+        "stock_symbol": "AAPL",
+        "exchange_acronym": "NASDAQ",
+        "name": "Apple",
+        "currency": "USD",
+        "exchange_timezone_name": "America/New_York",
+        "exchange_timezone_short_name": "EST",
+        "quote_type": "EQUITY",
+        "market_state": "REGULAR",
+        "regular_market_price": 192.53,
+        "year_to_date_return": 0.48,
+        "year_to_date_trading_date_range": "2023-01-03:2023-12-29",
+        "history": null
+    }
+]
+```

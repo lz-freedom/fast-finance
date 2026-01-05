@@ -47,6 +47,9 @@ class SQLiteManager:
             # Create investing_stock table
             SQLiteManager.init_investing_table(cursor)
             
+            # Create stock_history_cache table
+            SQLiteManager.init_history_cache_table(cursor)
+            
             conn.commit()
             conn.close()
             logger.info(f"Database initialized at {DB_PATH}")
@@ -571,3 +574,75 @@ class SQLiteManager:
         except Exception as e:
             logger.error(f"Error fetching investing stocks: {e}")
             return []
+
+    # --- History Cache Methods ---
+
+    @staticmethod
+    def init_history_cache_table(conn_or_cursor=None):
+        """
+        Create stock_history_cache table.
+        """
+        close_conn = False
+        if conn_or_cursor is None:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            close_conn = True
+        else:
+            if hasattr(conn_or_cursor, 'execute'):
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
+
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_history_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    data TEXT,
+                    created_at TIMESTAMP
+                )
+            """)
+            if close_conn:
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to create stock_history_cache table: {e}")
+        finally:
+            if close_conn:
+                conn.close()
+
+    @staticmethod
+    def get_history_cache(cache_key: str) -> Optional[str]:
+        """
+        Get cached history data (JSON string).
+        Returns None if not found.
+        """
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT data FROM stock_history_cache WHERE cache_key = ?", (cache_key,))
+            row = cursor.fetchone()
+            conn.close()
+            return row[0] if row else None
+        except Exception as e:
+            logger.error(f"Error getting history cache: {e}")
+            return None
+
+    @staticmethod
+    def upsert_history_cache(cache_key: str, data: str):
+        """
+        Upsert history cache data.
+        """
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            now = datetime.now()
+            
+            # Using REPLACE INTO for simplicity as key is PK
+            cursor.execute("""
+                REPLACE INTO stock_history_cache (cache_key, data, created_at)
+                VALUES (?, ?, ?)
+            """, (cache_key, data, now))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error upserting history cache: {e}")

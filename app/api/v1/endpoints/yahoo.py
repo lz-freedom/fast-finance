@@ -14,7 +14,11 @@ from app.schemas.yahoo import (
     YahooCalendarRequest,
     YahooMarketActivesRequest,
     YahooSplitsRequest,
-    YahooDividendsRequest
+    YahooDividendsRequest,
+    YahooDividendsRequest,
+    StockBaseDataRequestItem,
+    StockBaseDataBatchRequest,
+    StockBaseDataResponseItem
 )
 
 router = APIRouter()
@@ -131,6 +135,23 @@ async def get_dividends(request: YahooDividendsRequest):
         data = YahooService.get_dividends(request.symbol, request.period.value)
         return BaseResponse.success(data=data)
     except Exception as e:
+        raise e
+
+@router.post("/batch/get_stock_base_data", response_model=BaseResponse[List[StockBaseDataResponseItem]], summary="批量获取股票基础数据")
+async def get_batch_stock_base_data(request: StockBaseDataBatchRequest):
+    """
+    批量获取股票的基础信息、历史K线（近5年）以及回报率数据。
+    """
+    try:
+        # Convert request items to dicts
+        items_dicts = [item.model_dump() for item in request.stock_list]
+        is_return_history = request.is_return_history
+        
+        # Run in threadpool
+        data = await run_in_threadpool(YahooService.get_batch_stock_base_data, items_dicts, is_return_history)
+        return BaseResponse.success(data=data)
+    except Exception as e:
+        logger.error(f"Error in get_batch_stock_base_data: {e}")
         raise e
 
 @router.post("/rank/market_actives", response_model=BaseResponse, summary="获取活跃股票排行")
