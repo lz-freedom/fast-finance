@@ -40,8 +40,8 @@ class InvestingSyncService:
                 last_run_time=time.strftime("%Y-%m-%dT%H:%M:%S")
             )
             
-            thread = threading.Thread(target=self._run_sync_process, daemon=True)
-            thread.start()
+            # Run directly in the scheduler's thread/executor
+            self._run_sync_process()
             
             return self._task_status
 

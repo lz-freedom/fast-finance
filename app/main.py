@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
         openapi_url=f"{settings.API_V1_STR}/openapi.json",
         docs_url="/docs",
         redoc_url="/redoc",
+        description="Fast Finance API Document. \n\n[> 定时任务管理面板 (Scheduler UI)](/static/scheduler.html)"
     )
 
     # CORS 配置
