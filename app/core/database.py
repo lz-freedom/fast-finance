@@ -218,8 +218,8 @@ class DBManager:
                     exchange_acronym VARCHAR(20),
                     name VARCHAR(255),
                     description TEXT,
-                    logoid VARCHAR(100),
-                    logo_url VARCHAR(255),
+                    logoid VARCHAR(1000),
+                    logo_url VARCHAR(1000),
                     
                     ipo_offer_date DATE,
                     ipo_offer_price DECIMAL(38, 18),
@@ -388,19 +388,12 @@ class DBManager:
             cursor = conn.cursor()
             
             sql = """
-            DELETE t1 FROM fast_finance_tradingview_stock t1
-            WHERE t1.tradingview_full_stock_symbol LIKE '%.U' 
-            AND (
-                EXISTS (
-                    SELECT 1 FROM fast_finance_tradingview_stock t2 
-                    WHERE t2.tradingview_full_stock_symbol = REPLACE(t1.tradingview_full_stock_symbol, '.U', '.UN')
-                )
-                OR
-                EXISTS (
-                    SELECT 1 FROM fast_finance_tradingview_stock t3 
-                    WHERE t3.tradingview_full_stock_symbol = REPLACE(t1.tradingview_full_stock_symbol, '.U', '.UM')
-                )
-            )
+            DELETE t1 
+            FROM fast_finance_tradingview_stock t1
+            JOIN fast_finance_tradingview_stock t2 
+              ON (t2.tradingview_full_stock_symbol = REPLACE(t1.tradingview_full_stock_symbol, '.U', '.UN') 
+                  OR t2.tradingview_full_stock_symbol = REPLACE(t1.tradingview_full_stock_symbol, '.U', '.UM'))
+            WHERE t1.tradingview_full_stock_symbol LIKE '%.U'
             """
             
             cursor.execute(sql)

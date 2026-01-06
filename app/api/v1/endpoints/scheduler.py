@@ -144,7 +144,7 @@ async def get_logs(limit: int = 50):
                 "end_time": str(log["end_time"]) if log["end_time"] else None,
                 "duration_seconds": log["duration_seconds"] if log["duration_seconds"] else 0,
                 "message": log["message"] if log["message"] else "",
-                "created_at": str(log["created_at"])
+                "created_at": str(log["create_time"])
             })
         return BaseResponse.success(data=log_list)
     except Exception as e:
