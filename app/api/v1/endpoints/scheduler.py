@@ -32,7 +32,7 @@ async def get_jobs():
                 "name": job.name,
                 "title": meta.get("title", job.id),
                 "description": meta.get("description", ""),
-                "next_run_time": str(job.next_run_time) if job.next_run_time else None,
+                "next_run_time": job.next_run_time.strftime('%Y-%m-%d %H:%M:%S') if job.next_run_time else None,
                 "trigger": str(job.trigger),
                 "is_running": SchedulerService.is_job_running(job.id)
             })
@@ -57,7 +57,7 @@ async def get_job(job_id: str):
             "name": job.name,
             "title": meta.get("title", job.id),
             "description": meta.get("description", ""),
-            "next_run_time": str(job.next_run_time) if job.next_run_time else None,
+            "next_run_time": job.next_run_time.strftime('%Y-%m-%d %H:%M:%S') if job.next_run_time else None,
             "trigger": str(job.trigger),
             "is_running": SchedulerService.is_job_running(job.id)
         })

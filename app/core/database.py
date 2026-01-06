@@ -94,7 +94,7 @@ class DBManager:
 
         try:
             # Drop old table to enforce new schema if needed (Standardization)
-            cursor.execute("DROP TABLE IF EXISTS fast_finance_job_execution_logs")
+            # cursor.execute("DROP TABLE IF EXISTS fast_finance_job_execution_logs")
             
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS fast_finance_job_execution_logs (
@@ -211,7 +211,7 @@ class DBManager:
             # cursor.execute("DROP TABLE IF EXISTS fast_finance_tradingview_stock")
 
             cursor.execute("""
-                CREATE TABLE fast_finance_tradingview_stock (
+                CREATE TABLE IF NOT EXISTS fast_finance_tradingview_stock (
                     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'ID',
                     tradingview_full_stock_symbol VARCHAR(100) UNIQUE NOT NULL,
                     stock_symbol VARCHAR(50),
@@ -259,7 +259,7 @@ class DBManager:
             # cursor.execute("DROP TABLE IF EXISTS fast_finance_investing_stock")
 
             cursor.execute("""
-                CREATE TABLE fast_finance_investing_stock (
+                CREATE TABLE IF NOT EXISTS fast_finance_investing_stock (
                     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'ID',
                     investing_stock_pair_id BIGINT UNIQUE NOT NULL,
                     investing_stock_uid VARCHAR(100),
@@ -522,7 +522,7 @@ class DBManager:
             # cursor.execute("DROP TABLE IF EXISTS fast_finance_stock_history_cache")
 
             cursor.execute("""
-                CREATE TABLE fast_finance_stock_history_cache (
+                CREATE TABLE IF NOT EXISTS fast_finance_stock_history_cache (
                     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     cache_key VARCHAR(255) UNIQUE NOT NULL,
                     data LONGTEXT,
@@ -589,7 +589,7 @@ class DBManager:
         try:
             # cursor.execute("DROP TABLE IF EXISTS fast_finance_yahoo_analysis_cache")
             cursor.execute("""
-                CREATE TABLE fast_finance_yahoo_analysis_cache (
+                CREATE TABLE IF NOT EXISTS fast_finance_yahoo_analysis_cache (
                     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     symbol VARCHAR(50) UNIQUE NOT NULL,
                     data LONGTEXT,
@@ -658,7 +658,7 @@ class DBManager:
         try:
             # cursor.execute("DROP TABLE IF EXISTS fast_finance_yahoo_stock")
             cursor.execute("""
-                CREATE TABLE fast_finance_yahoo_stock (
+                CREATE TABLE IF NOT EXISTS fast_finance_yahoo_stock (
                     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'ID',
                     yahoo_stock_symbol VARCHAR(50) UNIQUE NOT NULL,
                     yahoo_exchange_symbol VARCHAR(20),
@@ -773,7 +773,7 @@ class DBManager:
         try:
             # cursor.execute("DROP TABLE IF EXISTS fast_finance_yahoo_stock_related_cache")
             cursor.execute("""
-                CREATE TABLE fast_finance_yahoo_stock_related_cache (
+                CREATE TABLE IF NOT EXISTS fast_finance_yahoo_stock_related_cache (
                     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     symbol VARCHAR(50) UNIQUE NOT NULL,
                     data LONGTEXT,
