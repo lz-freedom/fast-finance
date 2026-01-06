@@ -889,10 +889,32 @@ class SQLiteManager:
                     stock_symbol TEXT,
                     exchange_acronym TEXT,
                     name TEXT,
+                    currency TEXT,
+                    market_cap TEXT,
+                    market_cap_usd TEXT,
                     created_at TIMESTAMP,
                     updated_at TIMESTAMP
                 )
             """)
+            
+            # Lazy Migration for new columns
+            try:
+                cursor.execute("PRAGMA table_info(yahoo_stock)")
+                columns = [row[1] for row in cursor.fetchall()]
+                
+                new_cols = {
+                    "currency": "TEXT",
+                    "market_cap": "TEXT",
+                    "market_cap_usd": "TEXT"
+                }
+                
+                for col_name, col_type in new_cols.items():
+                    if col_name not in columns:
+                        logger.info(f"Migrating yahoo_stock: adding {col_name} column")
+                        cursor.execute(f"ALTER TABLE yahoo_stock ADD COLUMN {col_name} {col_type}")
+                        
+            except Exception as e:
+                logger.error(f"Migration check failed: {e}")
             if close_conn:
                 conn.commit()
         except Exception as e:
@@ -921,6 +943,9 @@ class SQLiteManager:
                     item.get('stock_symbol', ''),
                     item.get('exchange_acronym', ''),
                     item.get('name', ''),
+                    item.get('currency', ''),
+                    str(item.get('market_cap', '0')),
+                    str(item.get('market_cap_usd', '0')),
                     now, # created_at
                     now  # updated_at
                 ))
@@ -928,13 +953,16 @@ class SQLiteManager:
             cursor.executemany("""
                 INSERT INTO yahoo_stock (
                     yahoo_stock_symbol, yahoo_exchange_symbol, stock_symbol, exchange_acronym, 
-                    name, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    name, currency, market_cap, market_cap_usd, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(yahoo_stock_symbol) DO UPDATE SET
                     yahoo_exchange_symbol=excluded.yahoo_exchange_symbol,
                     stock_symbol=excluded.stock_symbol,
                     exchange_acronym=excluded.exchange_acronym,
                     name=excluded.name,
+                    currency=excluded.currency,
+                    market_cap=excluded.market_cap,
+                    market_cap_usd=excluded.market_cap_usd,
                     updated_at=excluded.updated_at
             """, db_rows)
             

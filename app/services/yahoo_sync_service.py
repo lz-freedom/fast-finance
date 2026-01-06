@@ -98,12 +98,24 @@ class YahooSyncService:
                                 name = name.title()
                             
                             # 3. 构造 yahoo_stock 表所需数据
+                            market_cap = q.get("marketCap", 0.0)
+                            if market_cap is None: market_cap = 0.0
+                            
+                            currency = q.get("currency", "")
+                            
+                            # Calculate Market Cap USD
+                            usd_rate = ex.get("usd_rate", 1.0)
+                            market_cap_usd = float(market_cap) * float(usd_rate)
+
                             batch_stocks.append({
                                 "yahoo_stock_symbol": raw_symbol,
                                 "yahoo_exchange_symbol": exchange_code,
                                 "stock_symbol": symbol,
                                 "exchange_acronym": acronym,
-                                "name": name
+                                "name": name,
+                                "currency": currency,
+                                "market_cap": str(market_cap),
+                                "market_cap_usd": str(market_cap_usd)
                             })
                         
                         # 批量写入数据库 (yahoo_stock)
