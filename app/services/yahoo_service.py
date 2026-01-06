@@ -776,15 +776,34 @@ class YahooService:
                                          pass 
                                  
                                  for _, row in hist_final.iterrows():
-                                     full_history_list.append({
-                                         "date": row[date_col].isoformat() if hasattr(row[date_col], 'isoformat') else str(row[date_col]),
-                                         "open": row.get('Open'),
-                                         "high": row.get('High'),
-                                         "low": row.get('Low'),
-                                         "close": row.get('Close'),
-                                         "adj_close": row.get('Adj Close'),
-                                         "volume": row.get('Volume')
-                                     })
+                                      # Ensure date is a datetime object or Timestamp
+                                      dt_val = row[date_col]
+                                      
+                                      # Default values
+                                      date_raw = str(dt_val)
+                                      date_fmt = str(dt_val)
+                                      date_ts = 0
+                                      
+                                      if hasattr(dt_val, 'isoformat'):
+                                          date_raw = dt_val.isoformat()
+                                      
+                                      if hasattr(dt_val, 'strftime'):
+                                          date_fmt = dt_val.strftime('%Y-%m-%d')
+                                          
+                                      if hasattr(dt_val, 'timestamp'):
+                                          date_ts = int(dt_val.timestamp())
+                                      
+                                      full_history_list.append({
+                                          "date_raw": date_raw,
+                                          "date": date_fmt,
+                                          "date_timestamp": date_ts,
+                                          "open": row.get('Open'),
+                                          "high": row.get('High'),
+                                          "low": row.get('Low'),
+                                          "close": row.get('Close'),
+                                          "adj_close": row.get('Adj Close'),
+                                          "volume": row.get('Volume')
+                                      })
                                      
                                  # Reverse Sort (Newest first)
                                  full_history_list.sort(key=lambda x: x['date'], reverse=True)
