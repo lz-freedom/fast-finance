@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.schemas.tradingview_sync import TradingViewStockListResponse, TradingViewStockBase, SyncTaskStatus
 from app.services.tradingview_sync_service import tradingview_sync_service
-from app.core.database import SQLiteManager
+from app.core.database import DBManager
 
 router = APIRouter()
 
@@ -44,5 +44,5 @@ def get_tradingview_stocks(
     查询已同步的 TradingView 股票数据。
     支持按交易所简称 (exchange_acronym) 和创建时间 (min_created_at) 进行过滤。
     """
-    stocks = SQLiteManager.get_tradingview_stocks(filter_req.exchange_acronym, filter_req.min_created_at)
+    stocks = DBManager.get_tradingview_stocks(filter_req.exchange_acronym, filter_req.min_created_at)
     return BaseResponse.success(data=stocks)

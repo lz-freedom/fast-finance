@@ -5,7 +5,7 @@ import time
 import threading
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from app.core.database import SQLiteManager
+from app.core.database import DBManager
 from app.core.constants import EXCHANGE_MAPPING
 from app.schemas.tradingview_sync import SyncTaskStatus, TradingViewStockBase
 
@@ -64,7 +64,7 @@ class TradingViewSyncService:
     def _run_sync_process(self, ipo_offer_date_type: Optional[str] = None):
         logger.info(f"Starting TradingView sync process (IPO Filter: {ipo_offer_date_type})...")
         try:
-            SQLiteManager.init_tradingview_table()
+            DBManager.init_tradingview_table()
             
             total_processed = 0
             
@@ -107,7 +107,7 @@ class TradingViewSyncService:
             
             # Post-sync cleanup
             try:
-                cleaned_count = SQLiteManager.cleanup_tradingview_duplicates()
+                cleaned_count = DBManager.cleanup_tradingview_duplicates()
                 logger.info(f"Cleanup finished: removed {cleaned_count} duplicates")
             except Exception as e:
                 logger.error(f"Cleanup failed: {e}")
@@ -200,7 +200,7 @@ class TradingViewSyncService:
                     db_items.append(db_item)
                     
                 # Save to DB
-                SQLiteManager.upsert_tradingview_batch(db_items)
+                DBManager.upsert_tradingview_batch(db_items)
                 processed_count += len(db_items)
                 
                 # Log batch success

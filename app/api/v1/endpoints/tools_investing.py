@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from app.schemas.response import BaseResponse
 from app.schemas.tradingview_sync import SyncTaskStatus
 from app.services.investing_sync_service import investing_sync_service
-from app.core.database import SQLiteManager
+from app.core.database import DBManager
 
 router = APIRouter()
 
@@ -37,9 +37,9 @@ def get_investing_stocks(
     """
     查询已同步的 Investing.com 股票数据。
     """
-    # SQLiteManager needs a method to get investing stocks
-    # Need to add get_investing_stocks to SQLiteManager first? 
+    # DBManager needs a method to get investing stocks
+    # Need to add get_investing_stocks to DBManager first? 
     # Or just execute query here? Better add to Manager.
-    # I'll add the method to SQLiteManager in the next step.
-    stocks = SQLiteManager.get_investing_stocks(filter_req.exchange_acronym, filter_req.min_created_at)
+    # I'll add the method to DBManager in the next step.
+    stocks = DBManager.get_investing_stocks(filter_req.exchange_acronym, filter_req.min_created_at)
     return BaseResponse.success(data=stocks)

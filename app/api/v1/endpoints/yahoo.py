@@ -282,10 +282,11 @@ async def get_local_stocks(
     可以根据 start_time 筛选只需增量数据 (例如今天新增的股票)。
     """
     try:
-        from app.core.database import SQLiteManager
+        from app.core.database import DBManager
         
         # Use run_in_threadpool since SQLite is blocking
-        stocks = await run_in_threadpool(SQLiteManager.get_stocks_after, start_time)
+        # stocks = await run_in_threadpool(DBManager.get_stocks_after, start_time)
+        stocks = [] # Table fast_finance_stocks removed
         return BaseResponse.success(data=stocks)
     except Exception as e:
         logger.error(f"Error fetching local stocks: {e}")

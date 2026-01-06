@@ -16,7 +16,7 @@ import os
 from app.core.utils import recursive_camel_case
 from app.core.config import settings
 from app.core.constants import get_stock_info, PLATFORM_YAHOO
-from app.core.database import SQLiteManager
+from app.core.database import DBManager
 from io import StringIO
 
 logger = logging.getLogger("fastapi")
@@ -49,7 +49,7 @@ if settings.PROXY_YAHOO:
     except Exception as e:
         logger.error(f"Failed to set yfinance proxy: {e}")
 
-# Simple in-memory cache removed. Using SQLiteManager.
+# Simple in-memory cache removed. Using DBManager.
 
 class YahooService:
     @staticmethod
@@ -359,7 +359,7 @@ class YahooService:
         yahoo_symbol = info["stock_symbol"] if info else stock_symbol
 
         # 2. Check Cache
-        cached = SQLiteManager.get_yahoo_stock_related_cache(yahoo_symbol)
+        cached = DBManager.get_yahoo_stock_related_cache(yahoo_symbol)
         
         data = None
         current_time = datetime.now()
@@ -390,7 +390,7 @@ class YahooService:
         if not data:
             data = YahooService.web_crawler(yahoo_symbol)
             if data:
-                SQLiteManager.upsert_yahoo_stock_related_cache(yahoo_symbol, json.dumps(data))
+                DBManager.upsert_yahoo_stock_related_cache(yahoo_symbol, json.dumps(data))
         elif should_update:
             threading.Thread(target=YahooService._background_update_related, args=(yahoo_symbol,)).start()
 
@@ -430,7 +430,7 @@ class YahooService:
                 "people_also_watch_list": []
             }
 
-        db_map = SQLiteManager.get_yahoo_stock_by_symbols(all_yahoo_symbols)
+        db_map = DBManager.get_yahoo_stock_by_symbols(all_yahoo_symbols)
         
         enriched_compare = []
         enriched_watch = []
@@ -472,7 +472,7 @@ class YahooService:
         try:
             new_data = YahooService._scrape_analysis_from_web(symbol)
             if new_data:
-                SQLiteManager.upsert_yahoo_stock_related_cache(symbol, json.dumps(new_data))
+                DBManager.upsert_yahoo_stock_related_cache(symbol, json.dumps(new_data))
         except Exception as e:
             logger.error(f"Background update failed for {symbol}: {e}")
 
@@ -825,7 +825,7 @@ class YahooService:
                         hist_long = None
                         
                         # Try DB Cache
-                        cached_json = SQLiteManager.get_history_cache(cache_key)
+                        cached_json = DBManager.get_history_cache(cache_key)
                         if cached_json:
                              logger.info(f"Cache hit for {cache_key}")
                              # Reconstruct DataFrame from JSON
@@ -869,7 +869,7 @@ class YahooService:
                                      # Convert to JSON string (orient='index' preserves Date index)
                                      # date_format='iso' makes it readable and portable
                                      json_str = hist_long.to_json(orient='index', date_format='iso')
-                                     SQLiteManager.upsert_history_cache(cache_key, json_str)
+                                     DBManager.upsert_history_cache(cache_key, json_str)
                                  except Exception as e:
                                      logger.error(f"Failed to save cache: {e}")
                         

@@ -113,7 +113,7 @@ async def resume_job(job_id: str):
         logger.error(f"Error resuming job {job_id}: {e}")
         return BaseResponse.fail(code="500", message=str(e))
 
-from app.core.database import SQLiteManager
+from app.core.database import DBManager
 
 class JobLog(BaseModel):
     id: int
@@ -132,7 +132,7 @@ async def get_logs(limit: int = 50):
     获取最近的任务执行日志。
     """
     try:
-        logs = SQLiteManager.get_job_logs(limit)
+        logs = DBManager.get_job_logs(limit)
         log_list = []
         for log in logs:
             log_list.append({

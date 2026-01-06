@@ -9,9 +9,12 @@ services:
       - "9130:9130"
     volumes:
       - .:/app # 开发模式挂载代码，实现热重载
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - LOG_LEVEL=info
       - PORT=9130
+      - TZ=Asia/Shanghai
       # - JSON_LOGS=true
       # 开发环境下覆盖启动命令以开启 reload
     command: uvicorn app.main:app --host 0.0.0.0 --port 9130 --reload

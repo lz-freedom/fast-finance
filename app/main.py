@@ -96,11 +96,11 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def startup_event():
         try:
-            from app.core.database import SQLiteManager
+            from app.core.database import DBManager
             from app.core.scheduler import SchedulerService
             
             # Initialize DB
-            SQLiteManager.init_db()
+            DBManager.init_db()
             
             # Start Scheduler
             SchedulerService.start()

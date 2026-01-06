@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     # 服务端口 (容器内部使用，外部通过 Docker 映射)
     PORT: int = 9130
 
+    # MySQL Database Settings
+    MYSQL_SERVER: str = "host.docker.internal"
+    MYSQL_USER: str = "root"
+    MYSQL_PASSWORD: str = ""
+    MYSQL_DB: str = "fast_finance"
+    MYSQL_PORT: int = 3306
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
 

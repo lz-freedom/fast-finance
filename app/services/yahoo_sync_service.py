@@ -3,7 +3,7 @@ import logging
 from typing import List
 import yfinance as yf
 from yfinance import EquityQuery
-from app.core.database import SQLiteManager
+from app.core.database import DBManager
 
 logger = logging.getLogger("fastapi")
 
@@ -120,7 +120,7 @@ class YahooSyncService:
                         
                         # 批量写入数据库 (yahoo_stock)
                         if batch_stocks:
-                            count = SQLiteManager.upsert_yahoo_stock_batch(batch_stocks)
+                            count = DBManager.upsert_yahoo_stock_batch(batch_stocks)
                             total_new_all += count # upsert_yahoo_stock_batch returns total count, assuming all are "new/updated"
                             # stats logic might need adjustment but for now just sum up
                             total_processed_all += len(batch_stocks)

@@ -5,7 +5,7 @@ import logging
 import threading
 from typing import List, Dict, Any, Optional
 
-from app.core.database import SQLiteManager
+from app.core.database import DBManager
 from app.core.constants import get_all_exchanges, PLATFORM_INVESTING
 from app.schemas.response import BaseResponse
 from app.schemas.tradingview_sync import SyncTaskStatus
@@ -160,7 +160,7 @@ class InvestingSyncService:
         chunk_size = 500
         for i in range(0, len(merged_items), chunk_size):
             chunk = merged_items[i:i + chunk_size]
-            SQLiteManager.upsert_investing_batch(chunk)
+            DBManager.upsert_investing_batch(chunk)
             processed += len(chunk)
             
         return processed

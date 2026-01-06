@@ -1,6 +1,6 @@
 from apscheduler.events import EVENT_JOB_SUBMITTED, EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from app.core.database import SQLiteManager
+from app.core.database import DBManager
 
 import logging
 from apscheduler.triggers.cron import CronTrigger
@@ -27,7 +27,7 @@ class SchedulerService:
                 # Job started
                 meta = cls.get_job_metadata(job_id)
                 job_name = meta.get("title", job_id)
-                log_id = SQLiteManager.log_job_start(job_id, job_name)
+                log_id = DBManager.log_job_start(job_id, job_name)
                 if log_id > 0:
                     cls._running_logs[job_id] = log_id
                     
@@ -35,7 +35,7 @@ class SchedulerService:
                 # Job finished successfully
                 log_id = cls._running_logs.get(job_id)
                 if log_id:
-                    SQLiteManager.log_job_finish(log_id, "SUCCESS")
+                    DBManager.log_job_finish(log_id, "SUCCESS")
                     # Clean up memory
                     cls._running_logs.pop(job_id, None)
                     
@@ -44,7 +44,7 @@ class SchedulerService:
                 log_id = cls._running_logs.get(job_id)
                 if log_id:
                     msg = str(event.exception) if event.exception else "Unknown error"
-                    SQLiteManager.log_job_finish(log_id, "FAILED", msg)
+                    DBManager.log_job_finish(log_id, "FAILED", msg)
                     cls._running_logs.pop(job_id, None)
                     
         except Exception as e:
@@ -67,14 +67,16 @@ class SchedulerService:
             YahooSyncService.sync_all_stocks,
             CronTrigger(hour=7, minute=5, timezone="Asia/Shanghai"),
             id="yahoo_sync_morning",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60
         )
         # 19:05
         cls._scheduler.add_job(
             YahooSyncService.sync_all_stocks,
             CronTrigger(hour=19, minute=5, timezone="Asia/Shanghai"),
             id="yahoo_sync_evening",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60
         )
 
         # TradingView Sync Tasks
@@ -83,14 +85,16 @@ class SchedulerService:
             tradingview_sync_service.start_sync_task,
             CronTrigger(hour=7, minute=35, timezone="Asia/Shanghai"),
             id="tradingview_sync_morning",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60
         )
         # 19:35
         cls._scheduler.add_job(
             tradingview_sync_service.start_sync_task,
             CronTrigger(hour=19, minute=35, timezone="Asia/Shanghai"),
             id="tradingview_sync_evening",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60
         )
 
         # Investing Sync Tasks
@@ -99,14 +103,16 @@ class SchedulerService:
             investing_sync_service.start_sync_task,
             CronTrigger(hour=8, minute=5, timezone="Asia/Shanghai"),
             id="investing_sync_morning",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60
         )
         # 20:05
         cls._scheduler.add_job(
             investing_sync_service.start_sync_task,
             CronTrigger(hour=20, minute=5, timezone="Asia/Shanghai"),
             id="investing_sync_evening",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60
         )
 
         cls._scheduler.start()
