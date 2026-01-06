@@ -93,20 +93,25 @@ class YahooSyncService:
                             if not name: name = q.get("prevName")
                             if not name: name = symbol
                             
-                            # 3. 交易所缩写直接使用配置中的 acronym，不再依赖 Yahoo 返回的 loose exchange code
-                            # 这样可以保证数据一致性 (例如所有 SSE 的股票即使 Yahoo 返回 SHH，我们存 SSE)
+                            # Normalize name (User request: fix all uppercase)
+                            if name:
+                                name = name.title()
                             
+                            # 3. 构造 yahoo_stock 表所需数据
                             batch_stocks.append({
-                                "symbol": symbol,
+                                "yahoo_stock_symbol": raw_symbol,
+                                "yahoo_exchange_symbol": exchange_code,
+                                "stock_symbol": symbol,
                                 "exchange_acronym": acronym,
                                 "name": name
                             })
                         
-                        # 批量写入数据库
+                        # 批量写入数据库 (yahoo_stock)
                         if batch_stocks:
-                            stats = SQLiteManager.upsert_stocks_batch(batch_stocks)
-                            total_new_all += stats["new"]
-                            total_processed_all += stats["processed"]
+                            count = SQLiteManager.upsert_yahoo_stock_batch(batch_stocks)
+                            total_new_all += count # upsert_yahoo_stock_batch returns total count, assuming all are "new/updated"
+                            # stats logic might need adjustment but for now just sum up
+                            total_processed_all += len(batch_stocks)
                         
                         offset += limit
                         

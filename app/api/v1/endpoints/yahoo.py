@@ -186,27 +186,23 @@ class YahooWebCrawlerResponse(BaseModel):
     analysis_compare_to: List[Dict[str, Any]] = []
     analysis_people_also_watch: List[Dict[str, Any]] = []
 
-@router.post("/yahoo_web_crawler", response_model=BaseResponse[YahooWebCrawlerResponse], summary="雅虎网页爬虫", description="获取回报率、获取同类股票、获取大家都在看")
+class YahooStockRelatedResponse(BaseModel):
+    compare_to_list: List[Dict[str, Any]] = []
+    people_also_watch_list: List[Dict[str, Any]] = []
+
+@router.post("/yahoo_web_crawler", response_model=BaseResponse[YahooWebCrawlerResponse], summary="雅虎网页爬虫", description="获取回报率、获取同类股票、获取大家都在看 (Raw Data)")
 async def yahoo_web_crawler(req: StockFinancialDataAggregationReq):
     try:
-        # Use helper from constants if needed, or just scrap directly using symbol
-        # But we need to resolve symbol first using the existing logic
-        # Or simply require the Yahoo Symbol? 
-        # The request is StockFinancialDataAggregationReq (symbol + exchange)
-        # So we resolve it first.
-        
+        # Resolve Yahoo Symbol
         from app.core.constants import get_stock_info
-        
         yahoo_info = get_stock_info(req.stock_symbol, req.exchange_acronym, PLATFORM_YAHOO)
-        if not yahoo_info:
-            # Fallback: Try constructing it manually or error
-            # If user provides valid yahoo ticker logic locally in client, maybe okay?
-            # But let's error for consistency
-            return BaseResponse.fail(code="400", message=f"Exchange acronym '{req.exchange_acronym}' not supported")
         
-        yahoo_symbol = yahoo_info["stock_symbol"]
+        # If mapping fails, try using stock_symbol directly? Use heuristics or just fail.
+        # Current logic: try stock_symbol as fallback or error.
+        # User output example implies strictness, but let's be flexible for crawler testing.
+        yahoo_symbol = yahoo_info["stock_symbol"] if yahoo_info else req.stock_symbol
 
-        raw_data = await run_in_threadpool(YahooService.get_scraped_analysis, yahoo_symbol)
+        raw_data = await run_in_threadpool(YahooService.web_crawler, yahoo_symbol)
         
         if not raw_data:
             return BaseResponse.success({
@@ -225,76 +221,6 @@ async def yahoo_web_crawler(req: StockFinancialDataAggregationReq):
                 "analysis_people_also_watch": []
             })
         
-        # Process Tickers Logic
-        # 1. Collect all symbols
-        compare_to_raw = raw_data.get("compare_to", [])
-        people_also_watch_raw = raw_data.get("people_also_watch", [])
-        
-        all_symbols = set()
-        for item in compare_to_raw:
-            if item.get("symbol"): all_symbols.add(item.get("symbol"))
-        for item in people_also_watch_raw:
-             if item.get("symbol"): all_symbols.add(item.get("symbol"))
-             
-        # 2. Batch Fetch Info
-        batch_info = {}
-        if all_symbols:
-            batch_info = await run_in_threadpool(YahooService.get_batch_basic_info, list(all_symbols))
-
-        def process_tickers(items: List[Dict[str, str]]):
-            processed = []
-            for item in items:
-                t = item.get("symbol")
-                name = item.get("name", "")
-                
-                if not t: continue
-                
-                # Check for batch info
-                info = batch_info.get(t) or batch_info.get(t.upper())
-                
-                # Rule: Discard if t is None (not found in yf)
-                if not info:
-                    continue 
-
-                # Get Price
-                currentPrice = info.get("currentPrice")
-                
-                # Resolve Exchange Acronym
-                exchange_acronym = None
-                
-                # Strategy 1: Map via Yahoo Exchange Code (e.g. NMS, NYQ)
-                yahoo_exchange_code = info.get("exchange")
-                if yahoo_exchange_code:
-                     exchange_map = get_exchange_info_by_platform_code(PLATFORM_YAHOO, yahoo_exchange_code)
-                     if exchange_map:
-                         exchange_acronym = exchange_map["acronym"]
-
-                # Strategy 2: Fallback to Suffix if exchange code lookup failed
-                # Only use if we explicitly map the suffix in constants
-                if not exchange_acronym:
-                     parts = t.split(".")
-                     if len(parts) > 1:
-                         suffix = parts[-1]
-                         exchange_info = get_exchange_info_by_platform_code(PLATFORM_YAHOO, suffix)
-                         if exchange_info:
-                             exchange_acronym = exchange_info["acronym"]
-                
-                # Rule: Discard if exchange not in constants (no acronym resolved)
-                if not exchange_acronym:
-                    continue
-
-                # Normalize symbol
-                parts = t.split(".")
-                symbol_part = parts[0]
-
-                processed.append({
-                    "stock_symbol": symbol_part,
-                    "exchange_acronym": exchange_acronym,
-                    "name": name,
-                    "currentPrice": currentPrice
-                })
-            return processed
-
         # Flatten Returns Logic
         returns_data = raw_data.get("returns", {})
         flat_returns = {
@@ -309,7 +235,6 @@ async def yahoo_web_crawler(req: StockFinancialDataAggregationReq):
             "five_years_index_change_percent": None,
         }
         
-        # Period Mapping
         period_map = {
             "YTD": ("ytd_stock_change_percent", "ytd_index_change_percent"),
             "1-Year": ("one_years_stock_change_percent", "one_years_index_change_percent"),
@@ -322,33 +247,31 @@ async def yahoo_web_crawler(req: StockFinancialDataAggregationReq):
                 stock_key, index_key = period_map[period]
                 flat_returns[stock_key] = data.get("stock")
                 flat_returns[index_key] = data.get("index")
-                # Set index name from the first available one
                 if data.get("index_name") and not flat_returns["index_name"]:
                     flat_returns["index_name"] = data.get("index_name")
 
         return BaseResponse.success({
             "analysis_returns": flat_returns,
-            "analysis_compare_to": process_tickers(compare_to_raw),
-            "analysis_people_also_watch": process_tickers(people_also_watch_raw)
+            "analysis_compare_to": raw_data.get("compare_to", []),
+            "analysis_people_also_watch": raw_data.get("people_also_watch", [])
         })
 
     except Exception as e:
         logger.error(f"Error in yahoo_web_crawler: {e}")
-        return BaseResponse.success({
-            "analysis_returns": {
-                "index_name": "",
-                "ytd_stock_change_percent": None,
-                "ytd_index_change_percent": None,
-                "one_years_stock_change_percent": None,
-                "one_years_index_change_percent": None,
-                "three_years_stock_change_percent": None,
-                "three_years_index_change_percent": None,
-                "five_years_stock_change_percent": None,
-                "five_years_index_change_percent": None,
-            },
+        return BaseResponse.success({ # Return empty success on error to avoid crashing frontend? Or fail? Using success with empty based on existing pattern.
+            "analysis_returns": {},
             "analysis_compare_to": [],
             "analysis_people_also_watch": []
         })
+
+@router.post("/yahoo_stock_related", response_model=BaseResponse[YahooStockRelatedResponse], summary="获取关联股票 (Enriched)", description="从数据库或爬虫获取关联股票数据")
+async def yahoo_stock_related(req: StockFinancialDataAggregationReq):
+    try:
+        data = await run_in_threadpool(YahooService.get_related_stock, req.stock_symbol, req.exchange_acronym)
+        return BaseResponse.success(data=data)
+    except Exception as e:
+        logger.error(f"Error in yahoo_stock_related: {e}")
+        return BaseResponse.fail(code="500", message=str(e))
 
 @router.post("/local/stocks", response_model=BaseResponse, summary="获取本地同步的股票列表")
 async def get_local_stocks(

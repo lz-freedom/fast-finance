@@ -1,8 +1,10 @@
 import yfinance as yf
 
+
 import pandas as pd
 from typing import List, Dict, Any, Optional, Union
-from datetime import date
+from datetime import date, datetime, timedelta
+import threading
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import json
@@ -346,13 +348,136 @@ class YahooService:
         return data
 
     @staticmethod
-    def get_scraped_analysis(symbol: str) -> Dict[str, Any]:
+    def get_related_stock(stock_symbol: str, exchange_acronym: str) -> Dict[str, Any]:
         """
-        Scrapes additional analysis data from Yahoo Finance web page:
-        - Performance Overview (Returns vs Index)
-        - Compare To (Competitors with Name)
-        - People Also Watch (Related Stocks with Name)
+        Get related stock information (Compare To, People Also Watch).
+        Uses caching and enrichment from yahoo_stock table.
         """
+        # 1. Construct Yahoo Symbol
+        from app.core.constants import get_stock_info, PLATFORM_YAHOO
+        info = get_stock_info(stock_symbol, exchange_acronym, PLATFORM_YAHOO)
+        yahoo_symbol = info["stock_symbol"] if info else stock_symbol
+
+        # 2. Check Cache
+        cached = SQLiteManager.get_yahoo_stock_related_cache(yahoo_symbol)
+        
+        data = None
+        current_time = datetime.now()
+        should_update = False
+        
+        if cached:
+            try:
+                data = json.loads(cached["data"])
+                cache_time = cached["created_at"]
+                if isinstance(cache_time, str):
+                    try:
+                        cache_time = datetime.fromisoformat(cache_time)
+                    except:
+                        pass
+                
+                if isinstance(cache_time, datetime):
+                    if (current_time - cache_time) > timedelta(days=1):
+                        should_update = True
+                else:
+                    should_update = True
+            except Exception as e:
+                logger.error(f"Error parsing cache for {yahoo_symbol}: {e}")
+                should_update = True
+        else:
+            should_update = True
+            
+        # 3. Fallback / Update Logic
+        if not data:
+            data = YahooService.web_crawler(yahoo_symbol)
+            if data:
+                SQLiteManager.upsert_yahoo_stock_related_cache(yahoo_symbol, json.dumps(data))
+        elif should_update:
+            threading.Thread(target=YahooService._background_update_related, args=(yahoo_symbol,)).start()
+
+        if not data:
+            return {
+                "compare_to_list": [],
+                "people_also_watch_list": []
+            }
+
+        # 4. Enrichment
+        return YahooService._enrich_related_data(data)
+
+    @staticmethod
+    def _enrich_related_data(raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enrich raw crawler data using yahoo_stock table.
+        Discard items not found in DB.
+        """
+        compare_list = raw_data.get("compare_to", [])
+        watch_list = raw_data.get("people_also_watch", [])
+        
+        # Helper to extract symbol from raw item
+        def extract_sym(item):
+            return item.get("symbol") # usage of 'symbol' matches scraper output
+
+        all_yahoo_symbols = []
+        for item in compare_list:
+            s = extract_sym(item)
+            if s: all_yahoo_symbols.append(s)
+        for item in watch_list:
+            s = extract_sym(item)
+            if s: all_yahoo_symbols.append(s)
+            
+        if not all_yahoo_symbols:
+            return {
+                "compare_to_list": [],
+                "people_also_watch_list": []
+            }
+
+        db_map = SQLiteManager.get_yahoo_stock_by_symbols(all_yahoo_symbols)
+        
+        enriched_compare = []
+        enriched_watch = []
+        
+        def process_list(src_list, dest_list):
+            for item in src_list:
+                ys = extract_sym(item)
+                if not ys: continue
+                
+                db_info = db_map.get(ys)
+                if db_info:
+                    data_item = {
+                        "stock_symbol": db_info["stock_symbol"],
+                        "exchange_acronym": db_info["exchange_acronym"],
+                        "name": db_info["name"]
+                    }
+                    if item.get("currentPrice") is not None:
+                        data_item["currentPrice"] = item.get("currentPrice")
+                    dest_list.append(data_item)
+                # Else discard
+                    
+        process_list(compare_list, enriched_compare)
+        process_list(watch_list, enriched_watch)
+        
+        return {
+            "compare_to_list": enriched_compare,
+            "people_also_watch_list": enriched_watch
+        }
+
+    @staticmethod
+    def web_crawler(symbol: str) -> Dict[str, Any]:
+        """
+        Scrapes raw analysis data from Yahoo Finance web page.
+        """
+        return YahooService._scrape_analysis_from_web(symbol)
+    
+    @staticmethod
+    def _background_update_related(symbol: str):
+        try:
+            new_data = YahooService._scrape_analysis_from_web(symbol)
+            if new_data:
+                SQLiteManager.upsert_yahoo_stock_related_cache(symbol, json.dumps(new_data))
+        except Exception as e:
+            logger.error(f"Background update failed for {symbol}: {e}")
+
+    @staticmethod
+    def _scrape_analysis_from_web(symbol: str) -> Dict[str, Any]:
         url = f"https://finance.yahoo.com/quote/{symbol}/"
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -367,7 +492,6 @@ class YahooService:
                 return {}
             
             from bs4 import BeautifulSoup
-            import re
             soup = BeautifulSoup(resp.text, "html.parser")
             
             result = {
@@ -376,19 +500,39 @@ class YahooService:
                 "people_also_watch": []
             }
             
-            # 1. Performance Overview (Stock vs Index)
-            # Structure: section[data-testid="performance-overview"] -> section[data-testid="card-container"]
+            # Helper to extract signed text
+            def get_signed_text(el):
+                if not el: return ""
+                text = el.get_text(strip=True)
+                if not text: return ""
+                
+                # Check for explicit negative class
+                is_negative = False
+                if el.has_attr("class"):
+                    classes = el["class"]
+                    for c in classes:
+                        c_lower = c.lower()
+                        if "negative" in c_lower or "neg" in c_lower or "down" in c_lower or "red" in c_lower:
+                            is_negative = True
+                            break
+                            
+                # If text already has sign, trust it
+                if text.startswith("+") or text.startswith("-"):
+                    return text
+                    
+                if is_negative and not text.startswith("-"):
+                    return f"-{text}"
+                return text
+            
+            # 1. Performance Overview
             perf_section = soup.find("section", {"data-testid": "performance-overview"})
             if perf_section:
                 cards = perf_section.find_all("section", {"data-testid": "card-container"})
                 for card in cards:
-                    # Get Title
                     title_div = card.find("h3", class_="title")
-                    if not title_div:
-                        continue
-                    title_text = title_div.get_text(strip=True) # e.g. "YTD Return"
+                    if not title_div: continue
+                    title_text = title_div.get_text(strip=True)
                     
-                    # Normalize key
                     key = None
                     if "YTD" in title_text: key = "YTD"
                     elif "1-Year" in title_text: key = "1-Year"
@@ -396,63 +540,81 @@ class YahooService:
                     elif "5-Year" in title_text: key = "5-Year"
                     
                     if key:
-                        # Get rows
-                        # Structure: div class="cards-4 perfInfo ..." -> div (row) -> div.symbol, div.perf
-                        # Note: The class name might contain hashes, rely on structure or partial class
                         info_div = card.find("div", class_=lambda x: x and "perfInfo" in x)
                         if info_div:
-                            # Direct children divs are the rows
                             rows = info_div.find_all("div", recursive=False)
                             if len(rows) >= 2:
-                                # Row 1: Stock
                                 stock_perf = rows[0].find("div", class_=lambda x: x and "perf" in x)
-                                
-                                # Row 2: Index
                                 index_row = rows[1]
                                 index_perf = index_row.find("div", class_=lambda x: x and "perf" in x)
                                 index_symbol = index_row.find("div", class_=lambda x: x and "symbol" in x)
                                 
                                 result["returns"][key] = {
-                                    "stock": stock_perf.get_text(strip=True) if stock_perf else "",
-                                    "index": index_perf.get_text(strip=True) if index_perf else "",
+                                    "stock": get_signed_text(stock_perf),
+                                    "index": get_signed_text(index_perf),
                                     "index_name": index_symbol.get_text(strip=True) if index_symbol else ""
                                 }
                             elif len(rows) == 1:
                                 stock_perf = rows[0].find("div", class_=lambda x: x and "perf" in x)
                                 result["returns"][key] = {
-                                    "stock": stock_perf.get_text(strip=True) if stock_perf else "",
+                                    "stock": get_signed_text(stock_perf),
                                     "index": None,
                                     "index_name": None
                                 }
 
-            # Helper to extract tickers from cards
-            def extract_from_cards(section_testid, key):
+            # Helper for tickers
+            def extract_tickers(section_testid, result_key):
                 section = soup.find("section", {"data-testid": section_testid})
                 if section:
-                    # Find cards
                     cards = section.find_all("section", {"data-testid": "card-container"})
                     for card in cards:
-                        # Strategy 1: Compare To structure
-                        # <div class="tickerContainer"> <a ...> <div> <span>SYMBOL</span> <div class="longName">NAME</div> </div> </a>
+                        price_val = None
+                        
+                        # Attempt 1: Compare To structure (span class="price ...")
+                        price_span = card.find("span", class_=lambda x: x and "price" in x)
+                        if price_span:
+                            price_val = price_span.get_text(strip=True)
+                        
+                        # Attempt 2: People Also Watch (div.moreInfo span strong)
+                        if not price_val:
+                            more_info = card.find("div", class_=lambda x: x and "moreInfo" in x)
+                            if more_info:
+                                strong = more_info.find("strong")
+                                if strong:
+                                    price_val = strong.get_text(strip=True)
+                        
+                        # Attempt 3: fin-streamer (fallback)
+                        if not price_val:
+                            price_el = card.find("fin-streamer", {"data-field": "regularMarketPrice"})
+                            if price_el:
+                                price_val = price_el.get_text(strip=True)
+
+                        # Parse Price
+                        if price_val:
+                             try:
+                                 # Remove commas and handle weird chars
+                                 price_val = price_val.replace(',', '')
+                                 price_val = float(price_val)
+                             except:
+                                 price_val = None
+
+                        # Strategy 1: Compare To (tickerContainer)
                         ticker_container = card.find("div", class_=lambda x: x and "tickerContainer" in x)
                         if ticker_container:
-                            a_tag = ticker_container.find("a")
-                            if a_tag:
-                                # Symbol
-                                span = a_tag.find("span")
-                                # Name
-                                long_name = a_tag.find("div", class_=lambda c: c and "longName" in c)
-                                if span and long_name:
-                                    s = span.get_text(strip=True)
-                                    n = long_name.get_text(strip=True)
+                            a = ticker_container.find("a")
+                            if a:
+                                s_el = a.find("span")
+                                n_el = a.find("div", class_=lambda c: c and "longName" in c)
+                                if s_el and n_el:
+                                    s = s_el.get_text(strip=True)
+                                    n = n_el.get_text(strip=True)
                                     if s and s != symbol:
-                                        result[key].append({"symbol": s, "name": n})
+                                        result[result_key].append({"symbol": s, "name": n, "price": price_val})
                                         continue
 
-                        # Strategy 2: People Also Watch structure
-                        # <div class="ticker-container"> ... <div data-testid="ticker-container"> ... <span class="symbol">SYMBOL</span> <span class="longName">NAME</span>
-                        # Note: People also watch has .ticker-container (lowercase/hyphen) vs tickerContainer
-                        # Let's try to find symbol and longName directly in the card if generic
+                        # Strategy 2: People Also Watch (generic structure)
+                        # Structure seen: 
+                        # <div class="ticker-container ..."> <span class="ticker-wrapper ..."> <div class="ticker ..."> <div class="name ..."> <span class="symbol ...">AMZN</span> <span class="longName ...">Amazon...</span>
                         
                         sym_span = card.find("span", class_=lambda x: x and "symbol" in x)
                         name_span = card.find(class_=lambda x: x and "longName" in x)
@@ -460,18 +622,14 @@ class YahooService:
                         if sym_span:
                             s = sym_span.get_text(strip=True)
                             n = name_span.get_text(strip=True) if name_span else ""
-                            # Sometimes name is in title attribute
                             if not n and name_span and name_span.has_attr("title"):
                                 n = name_span["title"]
                             
                             if s and s != symbol:
-                                result[key].append({"symbol": s, "name": n})
+                                result[result_key].append({"symbol": s, "name": n, "price": price_val})
 
-            # 2. Compare To
-            extract_from_cards("compare-to", "compare_to")
-            
-            # 3. People Also Watch
-            extract_from_cards("people-also-watch", "people_also_watch")
+            extract_tickers("compare-to", "compare_to")
+            extract_tickers("people-also-watch", "people_also_watch")
 
             # Dedup
             def dedup(l):
@@ -487,7 +645,6 @@ class YahooService:
             result["people_also_watch"] = dedup(result["people_also_watch"])
             
             return result
-            
             
         except Exception as e:
             logger.error(f"Error scraping Yahoo analysis for {symbol}: {e}")

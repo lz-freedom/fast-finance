@@ -49,12 +49,151 @@ class SQLiteManager:
             
             # Create stock_history_cache table
             SQLiteManager.init_history_cache_table(cursor)
+
+            # Create yahoo_analysis_cache table
+            SQLiteManager.init_analysis_cache_table(cursor)
+            
+            # Create yahoo_stock table
+            SQLiteManager.init_yahoo_stock_table(cursor)
+
+            # Create yahoo_stock_related_cache table
+            SQLiteManager.init_yahoo_stock_related_cache_table(cursor)
+
+            # Create job_execution_logs table
+            SQLiteManager.init_job_log_table(cursor)
             
             conn.commit()
             conn.close()
             logger.info(f"Database initialized at {DB_PATH}")
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
+
+    # ... (existing methods)
+
+    # --- Job Logging Methods ---
+
+    @staticmethod
+    def init_job_log_table(conn_or_cursor=None):
+        """
+        Create job_execution_logs table.
+        """
+        close_conn = False
+        if conn_or_cursor is None:
+            conn = sqlite3.connect(DB_PATH)
+            # Enable column name access
+            conn.row_factory = sqlite3.Row 
+            cursor = conn.cursor()
+            close_conn = True
+        else:
+            if hasattr(conn_or_cursor, 'execute'):
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
+
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS job_execution_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT,
+                    job_name TEXT,
+                    status TEXT, -- 'RUNNING', 'SUCCESS', 'FAILED'
+                    start_time TIMESTAMP,
+                    end_time TIMESTAMP,
+                    duration_seconds REAL,
+                    message TEXT,
+                    created_at TIMESTAMP
+                )
+            """)
+            if close_conn:
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to create job_execution_logs table: {e}")
+        finally:
+            if close_conn:
+                conn.close()
+
+    @staticmethod
+    def log_job_start(job_id: str, job_name: str) -> int:
+        """
+        Log job start. Returns inserted row ID.
+        """
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            now = datetime.now()
+            
+            cursor.execute("""
+                INSERT INTO job_execution_logs (job_id, job_name, status, start_time, created_at)
+                VALUES (?, ?, 'RUNNING', ?, ?)
+            """, (job_id, job_name, now, now))
+            
+            row_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return row_id
+        except Exception as e:
+            logger.error(f"Error logging job start: {e}")
+            return -1
+
+    @staticmethod
+    def log_job_finish(log_id: int, status: str, message: str = ""):
+        """
+        Log job finish (SUCCESS or FAILED).
+        """
+        if log_id < 0:
+            return
+            
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            now = datetime.now()
+            
+            # Fetch start time to calculate duration
+            cursor.execute("SELECT start_time FROM job_execution_logs WHERE id = ?", (log_id,))
+            row = cursor.fetchone()
+            start_time = None
+            if row:
+                if isinstance(row[0], str): # if stored as ISO string by sqlite adapter
+                    try:
+                        start_time = datetime.fromisoformat(row[0])
+                    except:
+                        pass
+                else:
+                    start_time = row[0]
+            
+            duration = 0.0
+            if start_time:
+                duration = (now - start_time).total_seconds()
+            
+            cursor.execute("""
+                UPDATE job_execution_logs 
+                SET status = ?, end_time = ?, duration_seconds = ?, message = ?
+                WHERE id = ?
+            """, (status, now, duration, message, log_id))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error logging job finish: {e}")
+
+    @staticmethod
+    def get_job_logs(limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Get latest job logs.
+        """
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM job_execution_logs ORDER BY id DESC LIMIT ?", (limit,))
+            rows = cursor.fetchall()
+            conn.close()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error getting job logs: {e}")
+            return []
+
 
     @staticmethod
     def upsert_stock(symbol: str, exchange_acronym: str, name: str) -> bool:
@@ -646,3 +785,275 @@ class SQLiteManager:
             conn.close()
         except Exception as e:
             logger.error(f"Error upserting history cache: {e}")
+
+    # --- Analysis Cache Methods ---
+
+    @staticmethod
+    def init_analysis_cache_table(conn_or_cursor=None):
+        """
+        Create yahoo_analysis_cache table.
+        """
+        close_conn = False
+        if conn_or_cursor is None:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            close_conn = True
+        else:
+            if hasattr(conn_or_cursor, 'execute'):
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
+
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS yahoo_analysis_cache (
+                    symbol TEXT PRIMARY KEY,
+                    data TEXT,
+                    created_at TIMESTAMP
+                )
+            """)
+            if close_conn:
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to create yahoo_analysis_cache table: {e}")
+        finally:
+            if close_conn:
+                conn.close()
+
+    @staticmethod
+    def get_analysis_cache(symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached analysis data.
+        Returns dict with keys: data (json strings), created_at (datetime)
+        """
+        try:
+            conn = sqlite3.connect(DB_PATH, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT data, created_at FROM yahoo_analysis_cache WHERE symbol = ?", (symbol,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return {
+                    "data": row["data"],
+                    "created_at": row["created_at"]
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error getting analysis cache for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def upsert_analysis_cache(symbol: str, data: str):
+        """
+        Upsert analysis cache data.
+        """
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            now = datetime.now()
+            
+            cursor.execute("""
+                REPLACE INTO yahoo_analysis_cache (symbol, data, created_at)
+                VALUES (?, ?, ?)
+            """, (symbol, data, now))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error upserting analysis cache for {symbol}: {e}")
+    @staticmethod
+    def init_yahoo_stock_table(conn_or_cursor=None):
+        """
+        Create yahoo_stock table.
+        """
+        close_conn = False
+        if conn_or_cursor is None:
+            conn = sqlite3.connect(DB_PATH)
+            # Enable column name access for migration checks
+            conn.row_factory = sqlite3.Row 
+            cursor = conn.cursor()
+            close_conn = True
+        else:
+            if hasattr(conn_or_cursor, 'execute'):
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
+
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS yahoo_stock (
+                    yahoo_stock_symbol TEXT PRIMARY KEY,
+                    yahoo_exchange_symbol TEXT,
+                    stock_symbol TEXT,
+                    exchange_acronym TEXT,
+                    name TEXT,
+                    created_at TIMESTAMP,
+                    updated_at TIMESTAMP
+                )
+            """)
+            if close_conn:
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to create yahoo_stock table: {e}")
+        finally:
+            if close_conn:
+                conn.close()
+
+    @staticmethod
+    def upsert_yahoo_stock_batch(items: List[Dict[str, Any]]) -> int:
+        """
+        Batch upsert yahoo stocks.
+        """
+        if not items:
+            return 0
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            now = datetime.now()
+            
+            db_rows = []
+            for item in items:
+                db_rows.append((
+                    item['yahoo_stock_symbol'],
+                    item.get('yahoo_exchange_symbol', ''),
+                    item.get('stock_symbol', ''),
+                    item.get('exchange_acronym', ''),
+                    item.get('name', ''),
+                    now, # created_at
+                    now  # updated_at
+                ))
+            
+            cursor.executemany("""
+                INSERT INTO yahoo_stock (
+                    yahoo_stock_symbol, yahoo_exchange_symbol, stock_symbol, exchange_acronym, 
+                    name, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(yahoo_stock_symbol) DO UPDATE SET
+                    yahoo_exchange_symbol=excluded.yahoo_exchange_symbol,
+                    stock_symbol=excluded.stock_symbol,
+                    exchange_acronym=excluded.exchange_acronym,
+                    name=excluded.name,
+                    updated_at=excluded.updated_at
+            """, db_rows)
+            
+            conn.commit()
+            count = cursor.rowcount
+            conn.close()
+            return len(items)
+        except Exception as e:
+            logger.error(f"Error upserting yahoo stock batch: {e}")
+            return 0
+
+    @staticmethod
+    def get_yahoo_stock_by_symbols(yahoo_symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Get yahoo stocks by a list of yahoo symbols.
+        Returns a dict mapping {yahoo_symbol: {data}}
+        """
+        if not yahoo_symbols:
+            return {}
+        try:
+            import time
+            start_ts = time.time()
+            
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            placeholders = ','.join(['?'] * len(yahoo_symbols))
+            sql = f"SELECT * FROM yahoo_stock WHERE yahoo_stock_symbol IN ({placeholders})"
+            cursor.execute(sql, yahoo_symbols)
+            rows = cursor.fetchall()
+            conn.close()
+            
+            duration_ms = (time.time() - start_ts) * 1000
+            # user-requested log style: [DEBU] [duration] [rows] SQL
+            logger.info(f"[DEBU] [{duration_ms:.2f} ms] [rows:{len(rows)}] SQL: {sql} Params: {yahoo_symbols}")
+            
+            result = {}
+            for row in rows:
+                r = dict(row)
+                result[r['yahoo_stock_symbol']] = r
+            return result
+        except Exception as e:
+            logger.error(f"Error getting yahoo stocks by symbols: {e}")
+            return {}
+
+    @staticmethod
+    def init_yahoo_stock_related_cache_table(conn_or_cursor=None):
+        """
+        Create yahoo_stock_related_cache table.
+        """
+        close_conn = False
+        if conn_or_cursor is None:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            close_conn = True
+        else:
+            if hasattr(conn_or_cursor, 'execute'):
+                cursor = conn_or_cursor
+            else:
+                cursor = conn_or_cursor.cursor()
+
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS yahoo_stock_related_cache (
+                    symbol TEXT PRIMARY KEY,
+                    data TEXT,
+                    created_at TIMESTAMP
+                )
+            """)
+            if close_conn:
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to create yahoo_stock_related_cache table: {e}")
+        finally:
+            if close_conn:
+                conn.close()
+
+    @staticmethod
+    def get_yahoo_stock_related_cache(symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Get cached related stock data.
+        """
+        try:
+            conn = sqlite3.connect(DB_PATH, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT data, created_at FROM yahoo_stock_related_cache WHERE symbol = ?", (symbol,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return {
+                    "data": row["data"],
+                    "created_at": row["created_at"]
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error getting related cache for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def upsert_yahoo_stock_related_cache(symbol: str, data: str):
+        """
+        Upsert related stock cache.
+        """
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            now = datetime.now()
+            
+            cursor.execute("""
+                REPLACE INTO yahoo_stock_related_cache (symbol, data, created_at)
+                VALUES (?, ?, ?)
+            """, (symbol, data, now))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error upserting related cache for {symbol}: {e}")
+
+    # End of Class

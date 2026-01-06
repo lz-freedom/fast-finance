@@ -48,10 +48,10 @@ class TradingViewSyncService:
                 last_run_time=datetime.now()
             )
             
-            thread = threading.Thread(target=self._run_sync_process, args=(ipo_offer_date_type,), daemon=True)
-            thread.start()
-            
-            return self._task_status
+        # Run directly in the scheduler's thread/executor
+        self._run_sync_process(ipo_offer_date_type)
+        
+        return self._task_status
 
     def stop_sync_task(self):
         """
@@ -128,9 +128,13 @@ class TradingViewSyncService:
                 break
                 
             try:
+                # Log batch start
+                logger.info(f"[{exchange}] Fetching batch range: {start} - {start + BATCH_SIZE}...")
+                
                 data = self._fetch_from_tradingview(exchange, start, start + BATCH_SIZE, ipo_offer_date_type)
                 
                 if not data or not data.get('data'):
+                    logger.info(f"[{exchange}] No more data received.")
                     break
                     
                 items = data['data']
@@ -199,6 +203,9 @@ class TradingViewSyncService:
                 SQLiteManager.upsert_tradingview_batch(db_items)
                 processed_count += len(db_items)
                 
+                # Log batch success
+                logger.info(f"[{exchange}] Processed batch items: {len(db_items)}. Total so far: {processed_count}")
+                
                 # Check if we reached end
                 if len(items) < BATCH_SIZE:
                     break
@@ -206,7 +213,7 @@ class TradingViewSyncService:
                 start += BATCH_SIZE
                 
                 # Be nice to API
-                time.sleep(0.5) 
+                time.sleep(1.0) # Increased delay slightly to be safer and give better log pacing
                 
             except Exception as e:
                 logger.error(f"Error syncing exchange {exchange}: {e}")

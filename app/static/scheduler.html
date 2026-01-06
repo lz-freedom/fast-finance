@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>定时任务管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-900 antialiased p-6">
+    <div id="app" class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">定时任务管理 Dashboard</h1>
+                <p class="text-sm text-gray-500 mt-1">管理系统后台数据同步与维护任务</p>
+            </div>
+            <div class="flex space-x-3">
+                <button @click="openLogs"
+                    class="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    查看日志
+                </button>
+                <button @click="fetchJobs"
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                    刷新列表
+                </button>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="error" class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-red-700">{{ error }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div v-if="loading" class="flex justify-center items-center py-20 bg-white rounded-lg shadow-sm">
+            <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+            </svg>
+            <span class="ml-3 text-gray-500 font-medium">加载任务数据中...</span>
+        </div>
+
+        <!-- Tasks Table -->
+        <div v-else class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                任务名称 / 描述</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                触发器 (Cron)</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                状态</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                下次运行时间</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <tr v-for="job in jobs" :key="job.id" class="hover:bg-gray-50 transition-colors duration-150">
+                            <!-- Task Name & Desc -->
+                            <td class="px-6 py-4">
+                                <div class="flex flex-col">
+                                    <span class="text-sm font-bold text-gray-900">{{ job.title }}</span>
+                                    <span class="text-xs text-gray-500 mt-1">{{ job.description }}</span>
+                                    <span class="text-[10px] font-mono text-gray-400 mt-1 select-all">ID: {{ job.id
+                                        }}</span>
+                                </div>
+                            </td>
+
+                            <!-- Trigger -->
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span
+                                    class="px-2 py-1 text-xs font-mono bg-gray-100 text-gray-600 rounded border border-gray-200">{{
+                                    job.trigger }}</span>
+                            </td>
+
+                            <!-- Status -->
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span v-if="job.is_running"
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                                    <span class="w-1.5 h-1.5 mr-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                                    运行中
+                                </span>
+                                <span v-else-if="job.next_run_time"
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                    <span class="w-1.5 h-1.5 mr-1.5 bg-green-500 rounded-full"></span>
+                                    等待执行
+                                </span>
+                                <span v-else
+                                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                    <span class="w-1.5 h-1.5 mr-1.5 bg-yellow-500 rounded-full"></span>
+                                    已暂停
+                                </span>
+                            </td>
+
+                            <!-- Next Run -->
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <div v-if="job.next_run_time" class="flex items-center space-x-1">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span>{{ job.next_run_time }}</span>
+                                </div>
+                                <span v-else class="text-gray-400 italic">--</span>
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <div class="flex justify-end space-x-2">
+                                    <button @click="runJob(job.id)"
+                                        class="text-green-600 hover:text-green-900 hover:bg-green-50 px-3 py-1 rounded transition-colors duration-150">
+                                        立即运行
+                                    </button>
+                                    <button v-if="job.next_run_time" @click="pauseJob(job.id)"
+                                        class="text-yellow-600 hover:text-yellow-900 hover:bg-yellow-50 px-3 py-1 rounded transition-colors duration-150">
+                                        暂停
+                                    </button>
+                                    <button v-else @click="resumeJob(job.id)"
+                                        class="text-blue-600 hover:text-blue-900 hover:bg-blue-50 px-3 py-1 rounded transition-colors duration-150">
+                                        恢复
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-between">
+                <span>Total Jobs: {{ jobs.length }}</span>
+                <span>Last Updated: {{ new Date().toLocaleTimeString() }}</span>
+            </div>
+        </div>
+
+        <!-- Log Modal -->
+        <div v-if="showLogs" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog"
+            aria-modal="true">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closeLogs"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div
+                    class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+                    <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div class="sm:flex sm:items-start">
+                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">任务执行日志</h3>
+                                <div class="mt-4">
+                                    <div class="overflow-x-auto max-h-[60vh]">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th
+                                                        class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                                                        任务</th>
+                                                    <th
+                                                        class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                                                        状态</th>
+                                                    <th
+                                                        class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                                                        开始时间</th>
+                                                    <th
+                                                        class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                                                        结束时间</th>
+                                                    <th
+                                                        class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                                                        耗时</th>
+                                                    <th
+                                                        class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                                                        信息</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="bg-white divide-y divide-gray-200">
+                                                <tr v-for="log in logs" :key="log.id" class="text-sm">
+                                                    <td class="px-4 py-2">{{ log.job_name }}</td>
+                                                    <td class="px-4 py-2">
+                                                        <span v-if="log.status==='SUCCESS'"
+                                                            class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">成功</span>
+                                                        <span v-else-if="log.status==='FAILED'"
+                                                            class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">失败</span>
+                                                        <span v-else
+                                                            class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">运行中</span>
+                                                    </td>
+                                                    <td class="px-4 py-2 text-gray-500">{{ formatDate(log.start_time) }}
+                                                    </td>
+                                                    <td class="px-4 py-2 text-gray-500">{{ log.end_time ?
+                                                        formatDate(log.end_time) : '-' }}</td>
+                                                    <td class="px-4 py-2">{{ log.duration_seconds > 0 ?
+                                                        log.duration_seconds.toFixed(2) + 's' : '-' }}</td>
+                                                    <td class="px-4 py-2 text-gray-500 truncate max-w-xs"
+                                                        :title="log.message">{{ log.message }}</td>
+                                                </tr>
+                                                <tr v-if="logs.length === 0">
+                                                    <td colspan="6" class="px-4 py-4 text-center text-gray-500">暂无日志
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <button type="button" @click="closeLogs"
+                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                            关闭
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            new Vue({
+                el: '#app',
+                data: {
+                    jobs: [],
+                    logs: [],
+                    loading: false,
+                    error: null,
+                    baseUrl: '/api/v1/scheduler',
+                    showLogs: false
+                },
+                mounted() {
+                    this.fetchJobs();
+                },
+                methods: {
+                    async fetchJobs() {
+                        this.loading = true;
+                        this.error = null;
+                        try {
+                            const res = await axios.get(`${this.baseUrl}/jobs`);
+                            if (res.data.code === "200000") {
+                                this.jobs = res.data.data;
+                            } else {
+                                this.error = res.data.message;
+                            }
+                        } catch (e) {
+                            this.error = "Failed to load jobs: " + e.message;
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+                    async fetchLogs() {
+                        try {
+                            const res = await axios.get(`${this.baseUrl}/logs?limit=50`);
+                            if (res.data.code === "200000") {
+                                this.logs = res.data.data;
+                            }
+                        } catch (e) {
+                            alert("Failed to load logs: " + e.message);
+                        }
+                    },
+                    openLogs() {
+                        this.showLogs = true;
+                        this.fetchLogs();
+                    },
+                    closeLogs() {
+                        this.showLogs = false;
+                    },
+                    formatDate(dateStr) {
+                        if (!dateStr) return '';
+                        // Simple formatter: take YYYY-MM-DD HH:MM:SS part
+                        // or just return as is if readable
+                        try {
+                            const d = new Date(dateStr);
+                            return d.toLocaleString('zh-CN');
+                        } catch (e) {
+                            return dateStr;
+                        }
+                    },
+                    async runJob(id) {
+                        if (!confirm(`确定要立即运行任务 ${id} 吗?`)) return;
+                        try {
+                            const res = await axios.post(`${this.baseUrl}/jobs/${id}/run`);
+                            if (res.data.code === "200000") {
+                                // custom toast could go here, for now alert is fine or just refresh
+                                // alert('任务已触发');
+                                this.fetchJobs();
+                            } else {
+                                alert('操作失败: ' + res.data.message);
+                            }
+                        } catch (e) {
+                            alert('Error: ' + e.message);
+                        }
+                    },
+                    async pauseJob(id) {
+                        try {
+                            const res = await axios.post(`${this.baseUrl}/jobs/${id}/pause`);
+                            if (res.data.code === "200000") {
+                                this.fetchJobs();
+                            } else {
+                                alert('操作失败: ' + res.data.message);
+                            }
+                        } catch (e) {
+                            alert('Error: ' + e.message);
+                        }
+                    },
+                    async resumeJob(id) {
+                        try {
+                            const res = await axios.post(`${this.baseUrl}/jobs/${id}/resume`);
+                            if (res.data.code === "200000") {
+                                this.fetchJobs();
+                            } else {
+                                alert('操作失败: ' + res.data.message);
+                            }
+                        } catch (e) {
+                            alert('Error: ' + e.message);
+                        }
+                    }
+                }
+            });
+        </script>
+</body>
+
+</html>

@@ -1,7 +1,9 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError, HTTPException
 from starlette.exceptions import HTTPException as StarletteHTTPException
+import os
 
 from app.core.config import settings
 from app.core.logging import setup_logging
@@ -79,17 +81,29 @@ def create_app() -> FastAPI:
     # 注册 Google 路由
     app.include_router(google.router, prefix=f"{settings.API_V1_STR}/google", tags=["Google Finance"])
 
+    # 注册 Scheduler 路由
+    from app.api.v1.endpoints import scheduler
+    app.include_router(scheduler.router, prefix=f"{settings.API_V1_STR}/scheduler", tags=["定时任务"])
 
+    # Mount Static Files
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    static_dir = os.path.join(current_dir, "static")
+    
+    if os.path.exists(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     @app.on_event("startup")
     async def startup_event():
         try:
             from app.core.database import SQLiteManager
+            from app.core.scheduler import SchedulerService
             
             # Initialize DB
             SQLiteManager.init_db()
             
-            # Auto-start removed as per request, use /tools/task/yahoo_stock_update to trigger
+            # Start Scheduler
+            SchedulerService.start()
+            
         except Exception as e:
             # Don't fail up just log
             print(f"Startup task failed: {e}")
