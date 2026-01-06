@@ -276,6 +276,9 @@ class StockBaseDataResponseItem(BaseModel):
     regular_market_open: Optional[float] = Field(None, description="正常交易时段开盘价")
     regular_market_day_low: Optional[float] = Field(None, description="正常交易时段最低价")
     regular_market_day_high: Optional[float] = Field(None, description="正常交易时段最高价")
+    regular_market_time: Optional[int] = Field(None, description="正常交易行情时间")
+    regular_market_change_amount: Optional[float] = Field(None, description="涨跌额")
+    regular_market_change_percent: Optional[float] = Field(None, description="涨跌幅")
     
     bid: Optional[float] = Field(None, description="买一价")
     ask: Optional[float] = Field(None, description="卖一价")
@@ -291,6 +294,7 @@ class StockBaseDataResponseItem(BaseModel):
     pe_dynamic: Optional[float] = Field(None, description="市盈率 (动)")
     price_to_sales_trailing_12_months: Optional[float] = Field(None, description="市销率（TTM）")
     price_to_book: Optional[float] = Field(None, description="市净率")
+    book_value: Optional[float] = Field(None, description="每股净资产")
     trailing_peg_ratio: Optional[float] = Field(None, description="PEG（市盈率 / 增长率）")
     
     # Dividends

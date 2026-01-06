@@ -864,6 +864,9 @@ class YahooService:
                         "regular_market_open": g("regularMarketOpen"),
                         "regular_market_day_low": g("regularMarketDayLow"),
                         "regular_market_day_high": g("regularMarketDayHigh"),
+                        "regular_market_time": g("regularMarketTime"),
+                        "regular_market_change_amount": g("regularMarketChangeAmount"),
+                        "regular_market_change_percent": g("regularMarketChangePercent"),
                         "dividend_rate": g("dividendRate"),
                         "dividend_yield": g("dividendYield"),
                         "ex_dividend_date": g("exDividendDate"),
@@ -880,6 +883,7 @@ class YahooService:
                         "pe_dynamic": g("forwardPE"),
                         "price_to_sales_trailing_12_months": g("priceToSalesTrailing12Months"),
                         "price_to_book": g("priceToBook"),
+                        "book_value": g("bookValue"),
                         "dividend_ttm": g("trailingAnnualDividendRate"), # Duplicate as per user reg
                         "dividend_yield_ttm": g("trailingAnnualDividendYield"), # Duplicate
                         # turnover_rate = volume / floatShares
