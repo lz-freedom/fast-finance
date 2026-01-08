@@ -37,27 +37,27 @@
 
 ```mermaid
 graph TD
-    Client[客户端 (Web/Mobile)] -->|HTTP/REST| LB[Nginx / Load Balancer]
-    LB -->|Proxy| API[Fast Finance API]
+    Client["客户端 (Web/Mobile)"] -->|HTTP/REST| LB["Nginx / Load Balancer"]
+    LB -->|Proxy| API["Fast Finance API"]
     
-    subgraph "Core Services"
-        API -->|Route| TV[TradingView Service]
-        API -->|Route| YF[Yahoo Finance Service]
-        API -->|Route| INV[Investing Service]
-        API -->|Route| GOOG[Google Service]
+    subgraph CoreServices ["Core Services"]
+        API -->|Route| TV["TradingView Service"]
+        API -->|Route| YF["Yahoo Finance Service"]
+        API -->|Route| INV["Investing Service"]
+        API -->|Route| GOOG["Google Service"]
         
-        Scheduler[APScheduler] -->|Trigger| Sync[Sync Services]
-        Sync -->|Write| DB[(MySQL Database)]
+        Scheduler["APScheduler"] -->|Trigger| Sync["Sync Services"]
+        Sync -->|Write| DB[("MySQL Database")]
         Sync -->|Fetch| YF
         Sync -->|Fetch| TV
         Sync -->|Fetch| INV
     end
     
-    subgraph "External Data Sources"
-        TV -->|HTTP/Proxy| TVAPI[TradingView Server]
-        YF -->|yfinance/Proxy| YFAPI[Yahoo Finance API]
-        INV -->|HTTP/Proxy| INVAPI[Investing.com]
-        GOOG -->|HTTP/Proxy| GOOGAPI[Google Finance]
+    subgraph ExternalSources ["External Data Sources"]
+        TV -->|HTTP/Proxy| TVAPI["TradingView Server"]
+        YF -->|yfinance/Proxy| YFAPI["Yahoo Finance API"]
+        INV -->|HTTP/Proxy| INVAPI["Investing.com"]
+        GOOG -->|HTTP/Proxy| GOOGAPI["Google Finance"]
     end
     
     style API fill:#009688,stroke:#fff,stroke-width:2px,color:#fff
