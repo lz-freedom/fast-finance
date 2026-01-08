@@ -2,11 +2,15 @@
 
 ## 正在进行的任务
 - [x] 修复系统架构图 Mermaid 渲染错误
-  - [x] **修正目标文件**：由于之前误修 `architecture.md`，现已修正 `README.md`。
-  - [x] **应用修复**：强制应用引号修复 (`Client["..."]`) 到 `README.md`。
+  - [x] 修正目标文件至 `README.md`
+  - [x] 应用强制引号语法修复
+- [x] 更新项目文档
+  - [x] 添加 yfinance 依赖徽章
+  - [x] 添加法律免责声明 (Legal Stuff)
+  - [x] 调整徽章样式为圆角 (style=flat)
 
 ## 任务上下文
-用户指出之前修改了错误的文件。本次操作已直接在 `README.md` 中应用了确定的 Mermaid 语法修复。
+用户要求调整 README 顶部徽章的样式为圆角。已将所有 `style=for-the-badge` 替换为 `style=flat`。
 
 ## 下一步计划
-等待用户确认 `README.md` 渲染正常。
+任务全部完成。文档已就绪。

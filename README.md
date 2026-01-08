@@ -2,15 +2,16 @@
 
 <div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688?style=for-the-badge&logo=fastapi)
-![MySQL](https://img.shields.io/badge/MySQL-8.0%2B-4479A1?style=for-the-badge&logo=mysql)
-![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?style=for-the-badge&logo=docker)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat&logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688?style=flat&logo=fastapi)
+![MySQL](https://img.shields.io/badge/MySQL-8.0%2B-4479A1?style=flat&logo=mysql)
+![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?style=flat&logo=docker)
+![yfinance](https://img.shields.io/badge/yfinance-ranaroussi-7b00ff?style=flat&logo=yahoo&logoColor=white&link=https://github.com/ranaroussi/yfinance)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
 **全方位金融数据聚合网关 | 高性能 • 易扩展 • 自动化**
 
-[快速开始](#快速开始) • [文档](#API-文档) • [配置](#配置说明) • [贡献](#贡献指南)
+[快速开始](#快速开始) • [文档](#API-文档) • [配置](#配置说明) • [贡献](#贡献指南) • [法律](#Legal-Stuff-法律事务)
 
 </div>
 
@@ -203,3 +204,8 @@ fast-finance/
 ## 📄 许可证
 
 本项目基于 [MIT 许可证](LICENSE) 开源。
+
+## ⚖️ Legal Stuff 法律事务
+
+**fast-finance** 与雅虎 (Yahoo)、谷歌 (Google)、TradingView、英为财情 (Investing.com) 等公司无关联、认可或审核。它是一个开源工具，使用雅虎/谷歌/TradingView/英为财情公开的 API，旨在研究和教育用途。你应参考雅虎/谷歌/TradingView/英为财情的使用条款，关于您使用实际下载数据的权利详情。
+
