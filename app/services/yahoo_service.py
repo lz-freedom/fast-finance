@@ -1041,7 +1041,7 @@ class YahooService:
                         "regular_market_day_low": g("regularMarketDayLow"),
                         "regular_market_day_high": g("regularMarketDayHigh"),
                         "regular_market_time": g("regularMarketTime"),
-                        "regular_market_change_amount": g("regularMarketChangeAmount"),
+                        "regular_market_change_amount": g("regularMarketChange"),
                         "regular_market_change_percent": g("regularMarketChangePercent"),
                         "dividend_rate": g("dividendRate"),
                         "dividend_yield": g("dividendYield"),
