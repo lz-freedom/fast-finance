@@ -40,7 +40,18 @@ async def get_history(request: YahooHistoryRequest):
     获取股票的历史市场数据。
     """
     try:
-        data = YahooService.get_history(request.symbol, request.period.value, request.interval.value)
+        from app.core.constants import get_stock_info, PLATFORM_YAHOO
+        
+        yahoo_info = get_stock_info(request.stock_symbol, request.exchange_acronym, PLATFORM_YAHOO)
+        yahoo_symbol = yahoo_info["stock_symbol"] if yahoo_info else request.stock_symbol
+        
+        data = YahooService.get_history(
+            symbol=yahoo_symbol, 
+            period=request.period.value, 
+            interval=request.interval.value, 
+            auto_adjust=request.auto_adjust,
+            repair=request.repair
+        )
         return BaseResponse.success(data=data)
     except Exception as e:
         raise e

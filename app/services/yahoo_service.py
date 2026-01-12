@@ -105,10 +105,10 @@ class YahooService:
             raise e
 
     @staticmethod
-    def get_history(symbol: str, period: str, interval: str) -> List[Dict[str, Any]]:
+    def get_history(symbol: str, period: str, interval: str, auto_adjust: bool = False, repair: bool = True) -> List[Dict[str, Any]]:
         try:
             ticker = yf.Ticker(symbol)
-            df = ticker.history(period=period, interval=interval)
+            df = ticker.history(period=period, interval=interval, auto_adjust=auto_adjust, repair=repair)
             
             if df.empty:
                 return []
@@ -124,6 +124,7 @@ class YahooService:
                     "high": row.get('High') if pd.notna(row.get('High')) else None,
                     "low": row.get('Low') if pd.notna(row.get('Low')) else None,
                     "close": row.get('Close') if pd.notna(row.get('Close')) else None,
+                    "adj_close": row.get('Adj Close') if pd.notna(row.get('Adj Close')) else None,
                     "volume": int(row.get('Volume')) if pd.notna(row.get('Volume')) else 0
                 }
                 result.append(record)
@@ -768,7 +769,7 @@ class YahooService:
                     use_today = ("REGULAR" in ms_upper) or ("POST" in ms_upper)
                     
                     # Short history for "latest trading day" check
-                    hist_short = t.history(period="10d", interval="1d", auto_adjust=False)
+                    hist_short = t.history(period="10d", interval="1d", auto_adjust=False, repair=True)
                     
                     if hist_short is None or hist_short.empty or "Adj Close" not in hist_short.columns:
                         logger.warning(f"No history found for {y_sym}")

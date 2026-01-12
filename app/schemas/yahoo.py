@@ -47,9 +47,12 @@ class YahooInfoRequest(BaseModel):
     symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
 
 class YahooHistoryRequest(BaseModel):
-    symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    stock_symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    exchange_acronym: str = Field(..., description="交易所缩写 / Exchange Acronym", example="NASDAQ")
     period: YahooPeriod = Field(default=YahooPeriod.mo1, description="时间周期 / Time Period")
     interval: YahooInterval = Field(default=YahooInterval.d1, description="K线间隔 / Interval")
+    auto_adjust: bool = Field(default=False, description="是否自动复权 / Auto Adjust")
+    repair: bool = Field(default=True, description="是否修复100x错误 / Repair")
 
 class YahooFinancialsRequest(BaseModel):
     symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
