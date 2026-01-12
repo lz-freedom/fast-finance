@@ -55,7 +55,8 @@ class YahooHistoryRequest(BaseModel):
     repair: bool = Field(default=True, description="是否修复100x错误 / Repair")
 
 class YahooFinancialsRequest(BaseModel):
-    symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    stock_symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    exchange_acronym: str = Field(..., description="交易所缩写 / Exchange Acronym", example="NASDAQ")
     type: FinancialsType = Field(..., description="报表类型 / Report Type")
     freq: FinancialsFrequency = Field(default=FinancialsFrequency.yearly, description="频率 / Frequency")
 
@@ -71,7 +72,8 @@ class YahooSearchRequest(BaseModel):
     query: str = Field(..., description="搜索关键词 / Search Query", example="Apple")
 
 class YahooNewsRequest(BaseModel):
-    symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    stock_symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    exchange_acronym: str = Field(..., description="交易所缩写 / Exchange Acronym", example="NASDAQ")
 
 class YahooHoldersRequest(BaseModel):
     symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")

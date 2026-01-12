@@ -17,8 +17,14 @@ def to_camel_case(text: str) -> str:
     if not words:
         return text.lower() # Fallback
 
-    # First word lowercase, others capitalized
-    return words[0].lower() + "".join(w.capitalize() for w in words[1:])
+    # First word: lowercase first letter only, preserving the rest of the casing
+    first_word = words[0]
+    if len(first_word) > 1:
+        first_word = first_word[0].lower() + first_word[1:]
+    else:
+        first_word = first_word.lower()
+        
+    return first_word + "".join(w.capitalize() for w in words[1:])
 
 def recursive_camel_case(data: any) -> any:
     """

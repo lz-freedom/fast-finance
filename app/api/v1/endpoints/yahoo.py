@@ -62,7 +62,11 @@ async def get_financials(request: YahooFinancialsRequest):
     获取资产负债表、利润表或现金流量表。
     """
     try:
-        data = YahooService.get_financials(request.symbol, request.type.value, request.freq.value)
+        from app.core.constants import get_stock_info, PLATFORM_YAHOO
+        yahoo_info = get_stock_info(request.stock_symbol, request.exchange_acronym, PLATFORM_YAHOO)
+        yahoo_symbol = yahoo_info["stock_symbol"] if yahoo_info else request.stock_symbol
+
+        data = YahooService.get_financials(yahoo_symbol, request.type.value, request.freq.value)
         return BaseResponse.success(data=data)
     except Exception as e:
         raise e
@@ -88,7 +92,11 @@ async def get_news(request: YahooNewsRequest):
     获取股票相关新闻。
     """
     try:
-        data = YahooService.get_news(request.symbol)
+        from app.core.constants import get_stock_info, PLATFORM_YAHOO
+        yahoo_info = get_stock_info(request.stock_symbol, request.exchange_acronym, PLATFORM_YAHOO)
+        yahoo_symbol = yahoo_info["stock_symbol"] if yahoo_info else request.stock_symbol
+
+        data = YahooService.get_news(yahoo_symbol)
         return BaseResponse.success(data=data)
     except Exception as e:
         raise e

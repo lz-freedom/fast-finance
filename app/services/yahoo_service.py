@@ -13,7 +13,7 @@ import requests
 from requests.exceptions import HTTPError
 import platformdirs as _ad
 import os
-from app.core.utils import recursive_camel_case
+from app.core.utils import recursive_camel_case, to_camel_case
 from app.core.config import settings
 from app.core.constants import get_stock_info, PLATFORM_YAHOO
 from app.core.database import DBManager
@@ -139,7 +139,7 @@ class YahooService:
             raise e
 
     @staticmethod
-    def get_financials(symbol: str, type_: str, freq: str = "yearly") -> Dict[str, Any]:
+    def get_financials(symbol: str, type_: str, freq: str = "yearly") -> List[Dict[str, Any]]:
         try:
             ticker = yf.Ticker(symbol)
             df = pd.DataFrame()
@@ -153,12 +153,28 @@ class YahooService:
                 df = ticker.get_cashflow(freq=freq)
             
             if df.empty:
-                return {}
+                return []
 
             df = df.where(pd.notnull(df), None)
-            df.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in df.columns]
-            # Convert the raw dict keys (like "Total Assets") to camelCase
-            return recursive_camel_case(df.to_dict())
+            
+            results = []
+            # Calculate camelCase mapping once for all rows
+            index_map = {idx: to_camel_case(str(idx)) for idx in df.index}
+            
+            for col_name in df.columns:
+                date_str = col_name.strftime('%Y-%m-%d') if hasattr(col_name, 'strftime') else str(col_name)
+                
+                # Create base object with date
+                item = {"date": date_str}
+                
+                # Add metrics
+                for idx, val in df[col_name].items():
+                    key = index_map.get(idx, str(idx))
+                    item[key] = val
+                    
+                results.append(item)
+                
+            return results
         except Exception as e:
             logger.error(f"Error fetching financials for {symbol}: {e}")
             raise e
