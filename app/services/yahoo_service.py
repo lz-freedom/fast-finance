@@ -1155,12 +1155,12 @@ class YahooService:
                         "pre_market_price": g("preMarketPrice"),
                         "pre_market_change": g("preMarketChange"),
                         "pre_market_change_percent": g("preMarketChangePercent"),
-                        # "pre_market_time": g("preMarketTime"), # Ensure timestamp is clear? 
+                        "pre_market_time": g("preMarketTime"), # Ensure timestamp is clear? 
                         
                         "post_market_change_percent": g("postMarketChangePercent"),
                         "post_market_price": g("postMarketPrice"),
                         "post_market_change": g("postMarketChange"),
-                        # "post_market_time": g("postMarketTime"),
+                        "post_market_time": g("postMarketTime"),
                         
                         # Calculated
                         "year_to_date_return": calculated_returns["YTD"],
