@@ -13,12 +13,12 @@ logger = logging.getLogger("fastapi")
 
 class AggregatedDataResponse(BaseModel):
     info: Dict[str, Any]
-    balance_yearly_yefinancials: Dict[str, Any]
-    balance_quarterly_yefinancials: Dict[str, Any]
-    income_yearly_yefinancials: Dict[str, Any]
-    income_quarterly_yefinancials: Dict[str, Any]
-    cashflow_yearly_yefinancials: Dict[str, Any]
-    cashflow_quarterly_yefinancials: Dict[str, Any]
+    balance_yearly_yefinancials: List[Dict[str, Any]]
+    balance_quarterly_yefinancials: List[Dict[str, Any]]
+    income_yearly_yefinancials: List[Dict[str, Any]]
+    income_quarterly_yefinancials: List[Dict[str, Any]]
+    cashflow_yearly_yefinancials: List[Dict[str, Any]]
+    cashflow_quarterly_yefinancials: List[Dict[str, Any]]
     news: List[Dict[str, Any]]
     splits: List[Dict[str, Any]]
     dividends: List[Dict[str, Any]]
@@ -74,7 +74,7 @@ async def stock_financial_data_aggregation(
             return await run_in_threadpool(YahooService.get_financials, yahoo_symbol, type_, freq)
         except Exception as e:
             logger.error(f"Error fetching financials {type_} {freq}: {e}")
-            return {}
+            return []
 
     async def fetch_news():
         try:
