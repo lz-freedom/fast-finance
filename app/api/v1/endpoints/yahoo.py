@@ -4,6 +4,7 @@ from app.services.yahoo_service import YahooService
 from app.schemas.response import BaseResponse
 from app.schemas.yahoo import (
     YahooInfoRequest, 
+    YahooLatestPriceRequest,
     YahooHistoryRequest, 
     YahooFinancialsRequest, 
     YahooSearchRequest,
@@ -11,14 +12,13 @@ from app.schemas.yahoo import (
     YahooHoldersRequest,
     YahooAnalysisRequest,
     YahooCalendarRequest,
-    YahooCalendarRequest,
     YahooMarketActivesRequest,
     YahooSplitsRequest,
     YahooDividendsRequest,
-    YahooDividendsRequest,
     StockBaseDataRequestItem,
     StockBaseDataBatchRequest,
-    StockBaseDataResponseItem
+    StockBaseDataResponseItem,
+    YahooLatestPriceResponse
 )
 
 router = APIRouter()
@@ -30,6 +30,22 @@ async def get_ticker_info(request: YahooInfoRequest):
     """
     try:
         data = YahooService.get_ticker_info(request.symbol)
+        return BaseResponse.success(data=data)
+    except Exception as e:
+        raise e
+
+@router.post("/latest_price", response_model=BaseResponse[YahooLatestPriceResponse], summary="获取单只股票最新常规市场价格")
+async def get_stock_latest_price(request: YahooLatestPriceRequest):
+    """
+    查询单只股票最新常规市场价格 (Price, Change, Time)。
+    """
+    try:
+        from app.core.constants import get_stock_info, PLATFORM_YAHOO
+        
+        yahoo_info = get_stock_info(request.stock_symbol, request.exchange_acronym, PLATFORM_YAHOO)
+        yahoo_symbol = yahoo_info["stock_symbol"] if yahoo_info else request.stock_symbol
+        
+        data = YahooService.get_stock_latest_price(yahoo_symbol)
         return BaseResponse.success(data=data)
     except Exception as e:
         raise e

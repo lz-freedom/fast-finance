@@ -46,7 +46,22 @@ class FinancialsFrequency(str, Enum):
 class YahooInfoRequest(BaseModel):
     symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
 
+class YahooLatestPriceRequest(BaseModel):
+    stock_symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    exchange_acronym: str = Field(..., description="交易所缩写 / Exchange Acronym", example="NASDAQ")
+
 class YahooHistoryRequest(BaseModel):
+    stock_symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
+    exchange_acronym: str = Field(..., description="交易所缩写 / Exchange Acronym", example="NASDAQ")
+    period: YahooPeriod = Field(default=YahooPeriod.mo1, description="时间周期 / Time Period")
+    interval: YahooInterval = Field(default=YahooInterval.d1, description="K线间隔 / Interval")
+    auto_adjust: bool = Field(default=False, description="是否自动复权 / Auto Adjust")
+    repair: bool = Field(default=True, description="是否修复100x错误 / Repair")
+
+# ... (Previous code continues, skipping down to Response)
+
+# We need to target the Response separately as it is far down.
+# Let's just do the Request first here.
     stock_symbol: str = Field(..., description="股票代码 / Stock Symbol", example="AAPL")
     exchange_acronym: str = Field(..., description="交易所缩写 / Exchange Acronym", example="NASDAQ")
     period: YahooPeriod = Field(default=YahooPeriod.mo1, description="时间周期 / Time Period")
@@ -112,6 +127,15 @@ class YahooTickerInfo(BaseModel):
     dividendRate: Optional[float] = Field(None, description="每股股息", example=0.8)
     exDividendDate: Optional[int] = Field(None, description="除息日 (Timestamp)", example=1675987200)
     targetMeanPrice: Optional[float] = Field(None, description="分析师目标均价", example=180.0)
+
+class YahooLatestPriceResponse(BaseModel):
+    model_config = ConfigDict(extra='allow')
+    
+    stock_symbol: Optional[str] = Field(None, description="Yahoo股票代码", example="AAPL")
+    current_price: Optional[float] = Field(None, description="当前价格", example=255.5)
+    change_amount: Optional[float] = Field(None, description="涨跌额", example=-2.7)
+    change_percent: Optional[float] = Field(None, description="涨跌幅", example=-1.05)
+    regular_market_time: Optional[int] = Field(None, description="行情时间", example=1712345678)
 
 class HistoricalDataItem(BaseModel):
     model_config = ConfigDict(extra='allow')

@@ -105,6 +105,27 @@ class YahooService:
             raise e
 
     @staticmethod
+    def get_stock_latest_price(symbol: str) -> Dict[str, Any]:
+        """
+        查询单只股票最新常规市场价格 (Price, Change, Time).
+        Use ticker.info as fast_info lacks regularMarketTime.
+        """
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            
+            return {
+                "stock_symbol": info.get("symbol"),
+                "current_price": info.get("currentPrice"),
+                "change_amount": info.get("regularMarketChange"),
+                "change_percent": info.get("regularMarketChangePercent"),
+                "regular_market_time": info.get("regularMarketTime")
+            }
+        except Exception as e:
+            logger.error(f"Error fetching latest price for {symbol}: {e}")
+            raise e
+
+    @staticmethod
     def get_history(symbol: str, period: str, interval: str, auto_adjust: bool = False, repair: bool = True) -> List[Dict[str, Any]]:
         try:
             ticker = yf.Ticker(symbol)
