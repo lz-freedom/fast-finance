@@ -119,7 +119,8 @@ class YahooService:
                 "current_price": info.get("currentPrice"),
                 "change_amount": info.get("regularMarketChange"),
                 "change_percent": info.get("regularMarketChangePercent"),
-                "regular_market_time": info.get("regularMarketTime")
+                "regular_market_time": info.get("regularMarketTime"),
+                "exchange_timezone_short_name": info.get("exchangeTimezoneShortName")
             }
         except Exception as e:
             logger.error(f"Error fetching latest price for {symbol}: {e}")
