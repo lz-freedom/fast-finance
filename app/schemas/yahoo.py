@@ -137,6 +137,7 @@ class YahooLatestPriceResponse(BaseModel):
     change_percent: Optional[float] = Field(None, description="涨跌幅", example=-1.05)
     regular_market_time: Optional[int] = Field(None, description="行情时间", example=1712345678)
     exchange_timezone_short_name: Optional[str] = Field(None, description="时区缩写", example="EST")
+    gmt_off_set_milliseconds: Optional[int] = Field(None, description="时区偏移")
 
 class HistoricalDataItem(BaseModel):
     model_config = ConfigDict(extra='allow')
