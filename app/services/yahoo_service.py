@@ -13,6 +13,7 @@ import requests
 from requests.exceptions import HTTPError
 import platformdirs as _ad
 import os
+from fake_useragent import UserAgent
 from app.core.utils import recursive_camel_case, to_camel_case
 from app.core.config import settings
 from app.core.constants import get_stock_info, PLATFORM_YAHOO
@@ -52,6 +53,15 @@ if settings.PROXY_YAHOO:
 # Simple in-memory cache removed. Using DBManager.
 
 class YahooService:
+    @staticmethod
+    def _get_proxies() -> Dict[str, str]:
+        if settings.PROXY_YAHOO:
+            return {
+                "http": settings.PROXY_YAHOO,
+                "https": settings.PROXY_YAHOO
+            }
+        return {}
+
     @staticmethod
     def _safe_dataframe_to_dict(df: Any, orientation: str = "records") -> Any:
         try:
@@ -518,17 +528,28 @@ class YahooService:
 
     @staticmethod
     def _scrape_analysis_from_web(symbol: str) -> Dict[str, Any]:
+        # Ensure trailing slash which is standard for Yahoo Quote pages
         url = f"https://finance.yahoo.com/quote/{symbol}/"
+        if symbol.lower().endswith(".si"):
+            url = f"https://sg.finance.yahoo.com/quote/{symbol}/"
+            
+        
+        try:
+            ua = UserAgent()
+            random_ua = ua.random
+        except Exception:
+             random_ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
         headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": random_ua,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5"
         }
         
         try:
-            resp = requests.get(url, headers=headers, timeout=10)
+            resp = requests.get(url, headers=headers, timeout=10, proxies=YahooService._get_proxies())
             if resp.status_code != 200:
-                logger.error(f"Failed to scrape Yahoo page for {symbol}: {resp.status_code}")
+                logger.error(f"Failed to scrape Yahoo page for {url}. Status: {resp.status_code}, Final URL: {resp.url}")
                 return {}
             
             from bs4 import BeautifulSoup
